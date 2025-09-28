@@ -20,7 +20,7 @@ export type TicketDto = {
   total: number;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_POS_API_BASE || "http://localhost:5000";
+const API_BASE = process.env.NEXT_PUBLIC_POS_API_BASE || "http://localhost:5001";
 
 async function handleJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
