@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { addLine, formatIdr, getMe, getMenu, getTicket, MenuItemDto, payCash, TicketDto } from "@/lib/api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getToken } from "@/lib/auth";
 
 export default function TicketClient({ ticketId }: { ticketId: string }) {
   const router = useRouter();
@@ -27,11 +26,6 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   }, [ticketId]);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
     (async () => {
       try {
         const me = await getMe();

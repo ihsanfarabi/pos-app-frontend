@@ -3,18 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTicket } from "@/lib/api";
-import { getToken } from "@/lib/auth";
 
 export default function PosEntry() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.replace("/login");
-      return;
-    }
     (async () => {
       try {
         const { id } = await createTicket();
