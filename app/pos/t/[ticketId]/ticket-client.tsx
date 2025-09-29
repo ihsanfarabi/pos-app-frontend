@@ -125,13 +125,6 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
         </div>
 
         {error && <div className="text-sm text-red-600">{error}</div>}
-
-        {/* Admin-only actions placeholder: hidden unless role === 'admin' */}
-        {role === "admin" ? (
-          <div className="pt-2 text-xs text-gray-500">Admin UI visible</div>
-        ) : (
-          <div className="pt-2 text-xs text-gray-400">Admin UI hidden</div>
-        )}
       </section>
     </div>
   );
