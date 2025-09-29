@@ -27,15 +27,24 @@ async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
   const token = getToken();
   const headers = new Headers(init?.headers ?? {});
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(input, { ...init, headers });
+  const res = await fetch(input, { ...init, headers, credentials: "include" });
   if (res.status === 401) {
-    clearToken();
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      if (!url.pathname.startsWith("/login")) {
-        window.location.href = "/login";
+    // Try refresh once
+    try {
+      const r = await fetch(`${API_BASE}/api/auth/refresh`, { method: "POST", credentials: "include" });
+      if (r.ok) {
+        const raw = (await r.json()) as { access_token?: string; expires_in?: number };
+        const token = raw.access_token ?? "";
+        if (token) {
+          const expiresIn = raw.expires_in ?? 0;
+          const { setToken } = await import("@/lib/auth");
+          setToken(token, expiresIn);
+          return await fetch(input, { ...init, headers: new Headers(headers), credentials: "include" });
+        }
       }
-    }
+    } catch {}
+    clearToken();
+    if (typeof window !== "undefined") window.location.href = "/login";
   }
   return res;
 }
@@ -60,6 +69,7 @@ export async function login(params: { email: string; password: string }): Promis
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: params.email, password: params.password }),
+    credentials: "include",
   });
   const raw = await handleJson<LoginResponseRaw>(res);
   return normalizeLoginResponse(raw);
