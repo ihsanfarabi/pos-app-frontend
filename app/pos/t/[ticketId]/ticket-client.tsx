@@ -1,14 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { addLine, formatIdr, getMenu, getTicket, MenuItemDto, payCash, TicketDto } from "@/lib/api";
+import { addLine, formatIdr, getMe, getMenu, getTicket, MenuItemDto, payCash, TicketDto } from "@/lib/api";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getToken } from "@/lib/auth";
 
 export default function TicketClient({ ticketId }: { ticketId: string }) {
+  const router = useRouter();
   const [menu, setMenu] = useState<MenuItemDto[]>([]);
   const [ticket, setTicket] = useState<TicketDto | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -23,8 +27,19 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   }, [ticketId]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+    (async () => {
+      try {
+        const me = await getMe();
+        setRole(me.role);
+      } catch {}
+      await refresh();
+    })();
+  }, [refresh, router]);
 
   function onAdd(menuItemId: number) {
     startTransition(async () => {
@@ -110,6 +125,13 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
         </div>
 
         {error && <div className="text-sm text-red-600">{error}</div>}
+
+        {/* Admin-only actions placeholder: hidden unless role === 'admin' */}
+        {role === "admin" ? (
+          <div className="pt-2 text-xs text-gray-500">Admin UI visible</div>
+        ) : (
+          <div className="pt-2 text-xs text-gray-400">Admin UI hidden</div>
+        )}
       </section>
     </div>
   );
