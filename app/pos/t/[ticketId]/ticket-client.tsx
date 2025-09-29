@@ -11,7 +11,7 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   const [ticket, setTicket] = useState<TicketDto | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
+  const [, setRole] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
