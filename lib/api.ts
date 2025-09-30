@@ -92,6 +92,27 @@ export async function getMenu(): Promise<MenuItemDto[]> {
   return handleJson<MenuItemDto[]>(res);
 }
 
+export type Paged<T> = { items: T[]; page: number; pageSize: number; total: number };
+
+export async function getMenuPaged(params: { page?: number; pageSize?: number; q?: string } = {}): Promise<Paged<MenuItemDto>> {
+  const url = new URL(`${API_BASE}/api/menu`);
+  if (params.page) url.searchParams.set("page", String(params.page));
+  if (params.pageSize) url.searchParams.set("pageSize", String(params.pageSize));
+  if (params.q && params.q.trim()) url.searchParams.set("q", params.q.trim());
+  const res = await authFetch(url.toString(), { cache: "no-store" });
+  return handleJson<Paged<MenuItemDto>>(res);
+}
+
+export type TicketListItem = { id: string; status: string; createdAt: string };
+
+export async function getTicketsPaged(params: { page?: number; pageSize?: number } = {}): Promise<Paged<TicketListItem>> {
+  const url = new URL(`${API_BASE}/api/tickets`);
+  if (params.page) url.searchParams.set("page", String(params.page));
+  if (params.pageSize) url.searchParams.set("pageSize", String(params.pageSize));
+  const res = await authFetch(url.toString(), { cache: "no-store" });
+  return handleJson<Paged<TicketListItem>>(res);
+}
+
 export async function createTicket(): Promise<{ id: string }> {
   const res = await authFetch(`${API_BASE}/api/tickets`, {
     method: "POST",

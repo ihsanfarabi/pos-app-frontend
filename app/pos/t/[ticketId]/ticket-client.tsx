@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { addLine, formatIdr, getMe, getMenu, getTicket, MenuItemDto, payCash, TicketDto } from "@/lib/api";
-import Link from "next/link";
+import { addLine, createTicket, formatIdr, getMe, getMenu, getTicket, MenuItemDto, payCash, TicketDto } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 export default function TicketClient({ ticketId }: { ticketId: string }) {
@@ -59,10 +58,22 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
     });
   }
 
+  function onNewTicket() {
+    startTransition(async () => {
+      try {
+        const { id } = await createTicket();
+        router.replace(`/pos/t/${id}`);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Failed to create ticket";
+        setError(message);
+      }
+    });
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
       <header className="md:col-span-2 flex items-center justify-between">
-        <Link href="/pos" className="text-sm underline">New Ticket</Link>
+        <button onClick={onNewTicket} disabled={isPending} className="text-sm rounded border px-3 py-1 disabled:opacity-50">New Ticket</button>
         <h1 className="text-xl font-semibold">Ticket {ticketId.slice(0, 8)}</h1>
         <div />
       </header>
