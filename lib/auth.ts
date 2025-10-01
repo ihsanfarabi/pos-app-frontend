@@ -4,43 +4,35 @@ export type StoredToken = {
 };
 
 function isBrowser(): boolean {
-  return typeof window !== "undefined" && typeof localStorage !== "undefined";
+  return typeof window !== "undefined";
 }
 
-const TOKEN_KEY = "posapp.accessToken";
+let memoryToken: StoredToken | null = null;
 
 export function setToken(token: string, expiresInSeconds?: number): void {
   if (!isBrowser()) return;
-  try {
-    const stored: StoredToken = {
-      accessToken: token,
-      expiresAt: expiresInSeconds ? Date.now() + expiresInSeconds * 1000 : undefined,
-    };
-    localStorage.setItem(TOKEN_KEY, JSON.stringify(stored));
-  } catch {}
+  memoryToken = {
+    accessToken: token,
+    expiresAt: expiresInSeconds ? Date.now() + expiresInSeconds * 1000 : undefined,
+  } satisfies StoredToken;
 }
 
 export function getToken(): string | null {
   if (!isBrowser()) return null;
-  try {
-    const raw = localStorage.getItem(TOKEN_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredToken;
-    if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
-      localStorage.removeItem(TOKEN_KEY);
-      return null;
-    }
-    return parsed.accessToken ?? null;
-  } catch {
+  if (!memoryToken) return null;
+  if (memoryToken.expiresAt && Date.now() > memoryToken.expiresAt) {
+    memoryToken = null;
     return null;
   }
+  return memoryToken.accessToken ?? null;
 }
 
 export function clearToken(): void {
   if (!isBrowser()) return;
-  try {
-    localStorage.removeItem(TOKEN_KEY);
-  } catch {}
+  memoryToken = null;
 }
 
-
+export function hasToken(): boolean {
+  const token = getToken();
+  return Boolean(token);
+}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getMe, MeResponse } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { refreshAccessToken } from "@/lib/http";
 
 export function useCurrentUser() {
   const [user, setUser] = useState<MeResponse | null>(null);
@@ -10,14 +11,17 @@ export function useCurrentUser() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      setLoading(false);
-      setUser(null);
-      return;
-    }
     (async () => {
       try {
+        let token = getToken();
+        if (!token) {
+          token = await refreshAccessToken();
+        }
+        if (!token) {
+          setUser(null);
+          setError(null);
+          return;
+        }
         const me = await getMe();
         setUser(me);
         setError(null);
@@ -33,5 +37,4 @@ export function useCurrentUser() {
 
   return { user, loading, error } as const;
 }
-
 

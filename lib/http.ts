@@ -1,5 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, type AxiosRequestConfig } from "axios";
-import { clearToken, getToken } from "@/lib/auth";
+import { clearToken, getToken, setToken } from "@/lib/auth";
 
 declare module "axios" {
   // Allow custom flags on request config for auth handling.
@@ -20,7 +20,7 @@ type RefreshResponse = {
 
 let refreshPromise: Promise<string | null> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
   if (refreshPromise) return refreshPromise;
 
@@ -35,7 +35,6 @@ async function refreshAccessToken(): Promise<string | null> {
       const token = body.accessToken ?? body.access_token ?? "";
       if (!token) return null;
       const expiresIn = body.expiresIn ?? body.expires_in;
-      const { setToken } = await import("@/lib/auth");
       setToken(token, expiresIn);
       return token;
     } catch {

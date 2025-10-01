@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useMemo, useCallback, useEffect, useState, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getToken, setToken as setStoredToken, clearToken as clearStoredToken } from "@/lib/auth";
+import { getToken, setToken as setStoredToken, clearToken as clearStoredToken, hasToken as hasStoredToken } from "@/lib/auth";
 import { authKeys, meQueryOptions } from "@/lib/query-options";
+import { refreshAccessToken } from "@/lib/http";
 
 type User = {
   email: string;
@@ -20,17 +21,45 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function readToken(): string | null {
-  return typeof window !== "undefined" ? getToken() : null;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [hasToken, setHasToken] = useState<boolean | null>(null);
+  const [hasToken, setHasToken] = useState<boolean | null>(() => {
+    if (typeof window === "undefined") return null;
+    return hasStoredToken() ? true : null;
+  });
 
   useEffect(() => {
-    setHasToken(Boolean(readToken()));
-  }, []);
+    if (typeof window === "undefined") return undefined;
+
+    let active = true;
+
+    (async () => {
+      try {
+        if (hasStoredToken()) {
+          if (active) setHasToken(true);
+          return;
+        }
+        const token = await refreshAccessToken();
+        if (!active) return;
+        if (token) {
+          setHasToken(true);
+        } else {
+          clearStoredToken();
+          setHasToken(false);
+          queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
+        }
+      } catch {
+        if (!active) return;
+        clearStoredToken();
+        setHasToken(false);
+        queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [queryClient]);
 
   const meQuery = useQuery({
     ...meQueryOptions(),
@@ -74,16 +103,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const refreshUser = useCallback(async () => {
-    const token = readToken();
-    if (!token) {
+    try {
+      let token = getToken();
+      if (!token) {
+        token = await refreshAccessToken();
+      }
+      if (!token) {
+        clearStoredToken();
+        setHasToken(false);
+        queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
+        return;
+      }
+      setHasToken(true);
+      await queryClient.invalidateQueries({ queryKey: authKeys.me(), exact: false });
+      await queryClient.refetchQueries({ queryKey: authKeys.me(), exact: false });
+    } catch {
       clearStoredToken();
       setHasToken(false);
       queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
-      return;
     }
-    setHasToken(true);
-    await queryClient.invalidateQueries({ queryKey: authKeys.me(), exact: false });
-    await queryClient.refetchQueries({ queryKey: authKeys.me(), exact: false });
   }, [queryClient]);
 
   return (
@@ -100,4 +138,3 @@ export function useAuth() {
   }
   return context;
 }
-
