@@ -1,17 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { type TicketListItem } from "@/lib/api";
 import { useUrlPaging } from "@/lib/url-paging";
-import { ticketsPagedQueryOptions } from "@/lib/query-options";
+import { useTicketsPaged } from "@/lib/hooks";
 
 export default function AdminTicketsPage() {
   const { page, pageSize, setState } = useUrlPaging({ page: 1, pageSize: 20 });
 
   const filters = useMemo(() => ({ page, pageSize }), [page, pageSize]);
-  const ticketsQuery = useQuery(ticketsPagedQueryOptions(filters));
+  const ticketsQuery = useTicketsPaged(filters);
 
   const columns: ColumnDef<TicketListItem, unknown>[] = useMemo(
     () => [

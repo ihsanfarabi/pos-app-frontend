@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { login } from "@/lib/api";
+import { login, type LoginRequest } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useApiMutation } from "@/lib/hooks";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,8 +15,16 @@ export default function LoginPage() {
   const { user, login: authLogin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loginMutation = useApiMutation({
+    mutationFn: login,
+    onErrorMessage: (message) => setError(message ?? null),
+    onSuccess: async (res) => {
+      await authLogin(res.accessToken, res.expiresIn);
+      router.push(redirect);
+    },
+  });
 
   useEffect(() => {
     if (user) {
@@ -23,19 +32,9 @@ export default function LoginPage() {
     }
   }, [user, router, redirect]);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await login({ email, password });
-      await authLogin(res.accessToken, res.expiresIn);
-      router.push(redirect);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Login failed";
-      setError(message);
-      setLoading(false);
-    }
+    loginMutation.mutate({ email, password } satisfies LoginRequest);
   }
 
   return (
@@ -78,8 +77,8 @@ export default function LoginPage() {
                 {error}
               </p>
             )}
-            <Button type="submit" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+            <Button type="submit" disabled={loginMutation.isPending}>
+              {loginMutation.isPending ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         </CardContent>
@@ -87,5 +86,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-

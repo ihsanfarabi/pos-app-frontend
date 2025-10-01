@@ -2,26 +2,31 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { logout as logoutRequest } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useApiMutation } from "@/lib/hooks";
 
 export default function LogoutPage() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout: authLogout } = useAuth();
+
+  const { mutateAsync: performLogout } = useApiMutation({
+    mutationFn: logoutRequest,
+  });
 
   useEffect(() => {
+    let active = true;
     (async () => {
       try {
-        await fetch((process.env.NEXT_PUBLIC_POS_API_BASE || "http://localhost:5001") + "/api/auth/logout", {
-          method: "POST",
-          credentials: "include",
-        });
+        await performLogout();
       } catch {}
-      logout();
-      router.replace("/login");
+      authLogout();
+      if (active) router.replace("/login");
     })();
-  }, [router, logout]);
+    return () => {
+      active = false;
+    };
+  }, [performLogout, authLogout, router]);
 
   return <p className="p-6">Signing out...</p>;
 }
-
-

@@ -23,17 +23,35 @@ export type TicketPagedFilters = {
   pageSize: number;
 };
 
+const MENU_PAGE_DEFAULT = 1;
+const MENU_PAGE_SIZE_DEFAULT = 20;
+const TICKET_PAGE_DEFAULT = 1;
+const TICKET_PAGE_SIZE_DEFAULT = 20;
+
 export const menuKeys = {
   root: ["menu"] as const,
-  all: () => [...menuKeys.root] as const,
-  paged: (filters: MenuPagedFilters) => [...menuKeys.root, "paged", filters] as const,
-  list: () => [...menuKeys.root, "list"] as const,
+  all: () => ["menu"] as const,
+  list: () => ["menu", "list"] as const,
+  paged: (filters: MenuPagedFilters) =>
+    [
+      "menu",
+      "paged",
+      filters.page ?? MENU_PAGE_DEFAULT,
+      filters.pageSize ?? MENU_PAGE_SIZE_DEFAULT,
+      filters.q?.trim() ?? "",
+    ] as const,
 };
 
 export const ticketKeys = {
   root: ["tickets"] as const,
-  paged: (filters: TicketPagedFilters) => [...ticketKeys.root, "paged", filters] as const,
-  detail: (ticketId: string) => [...ticketKeys.root, "detail", ticketId] as const,
+  paged: (filters: TicketPagedFilters) =>
+    [
+      "tickets",
+      "paged",
+      filters.page ?? TICKET_PAGE_DEFAULT,
+      filters.pageSize ?? TICKET_PAGE_SIZE_DEFAULT,
+    ] as const,
+  detail: (ticketId: string) => ["tickets", "detail", ticketId] as const,
 };
 
 export const authKeys = {
@@ -41,15 +59,15 @@ export const authKeys = {
 };
 
 export function menuPagedQueryOptions(filters: MenuPagedFilters) {
-  const normalized: MenuPagedFilters = {
+  const params: MenuPagedFilters = {
     page: filters.page,
     pageSize: filters.pageSize,
     q: filters.q?.trim() ? filters.q.trim() : undefined,
   };
 
   return queryOptions({
-    queryKey: menuKeys.paged(normalized),
-    queryFn: () => getMenuPaged(normalized),
+    queryKey: menuKeys.paged(filters),
+    queryFn: () => getMenuPaged(params),
     placeholderData: keepPreviousData,
   });
 }
@@ -62,14 +80,14 @@ export function menuQueryOptions() {
 }
 
 export function ticketsPagedQueryOptions(filters: TicketPagedFilters) {
-  const normalized: TicketPagedFilters = {
+  const params: TicketPagedFilters = {
     page: filters.page,
     pageSize: filters.pageSize,
   };
 
   return queryOptions({
-    queryKey: ticketKeys.paged(normalized),
-    queryFn: () => getTicketsPaged(normalized),
+    queryKey: ticketKeys.paged(filters),
+    queryFn: () => getTicketsPaged(params),
     placeholderData: keepPreviousData,
   });
 }
@@ -93,4 +111,3 @@ export type MenuPagedResult = Paged<MenuItemDto>;
 export type TicketsPagedResult = Paged<TicketListItem>;
 export type TicketDetailResult = TicketDto;
 export type MeResult = MeResponse;
-

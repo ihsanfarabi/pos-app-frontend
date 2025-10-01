@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { createContext, useContext, useMemo, useCallback, useEffect, useState, ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getToken, setToken as setStoredToken, clearToken as clearStoredToken } from "@/lib/auth";
 import { authKeys, meQueryOptions } from "@/lib/query-options";
 
@@ -20,52 +20,71 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function readToken(): string | null {
+  return typeof window !== "undefined" ? getToken() : null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User>(null);
-  const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
-
-  const fetchUser = useCallback(async () => {
-    setLoading(true);
-    const token = getToken();
-    if (!token) {
-      setUser(null);
-      queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const me = await queryClient.fetchQuery({ ...meQueryOptions(), staleTime: 0 });
-      setUser({ email: me.email, role: me.role });
-    } catch {
-      setUser(null);
-      clearStoredToken();
-      queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
-    } finally {
-      setLoading(false);
-    }
-  }, [queryClient]);
+  const [hasToken, setHasToken] = useState<boolean | null>(null);
 
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    setHasToken(Boolean(readToken()));
+  }, []);
+
+  const meQuery = useQuery({
+    ...meQueryOptions(),
+    enabled: hasToken === true,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (meQuery.isError) {
+      clearStoredToken();
+      setHasToken(false);
+      queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
+    }
+  }, [meQuery.isError, queryClient]);
+
+  const user = useMemo<User>(() => {
+    const data = meQuery.data;
+    if (!data) return null;
+    return { email: data.email, role: data.role };
+  }, [meQuery.data]);
+
+  const loading = hasToken === null || (hasToken === true && meQuery.isPending);
 
   const login = useCallback(async (token: string, expiresIn?: number) => {
     setStoredToken(token, expiresIn);
-    queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
-    await fetchUser();
-  }, [fetchUser, queryClient]);
+    setHasToken(true);
+    try {
+      await queryClient.fetchQuery(meQueryOptions());
+    } catch (error) {
+      clearStoredToken();
+      setHasToken(false);
+      queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
+      throw error;
+    }
+  }, [queryClient]);
 
   const logout = useCallback(() => {
     clearStoredToken();
-    setUser(null);
+    setHasToken(false);
     queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
   }, [queryClient]);
 
   const refreshUser = useCallback(async () => {
-    await fetchUser();
-  }, [fetchUser]);
+    const token = readToken();
+    if (!token) {
+      clearStoredToken();
+      setHasToken(false);
+      queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
+      return;
+    }
+    setHasToken(true);
+    await queryClient.invalidateQueries({ queryKey: authKeys.me(), exact: false });
+    await queryClient.refetchQueries({ queryKey: authKeys.me(), exact: false });
+  }, [queryClient]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
@@ -81,3 +100,4 @@ export function useAuth() {
   }
   return context;
 }
+

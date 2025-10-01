@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createMenuItem,
   deleteMenuItem,
@@ -10,7 +10,8 @@ import {
 } from "@/lib/api";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { useUrlPaging } from "@/lib/url-paging";
-import { menuKeys, menuPagedQueryOptions } from "@/lib/query-options";
+import { menuKeys } from "@/lib/query-options";
+import { useApiMutation, useMenuPaged } from "@/lib/hooks";
 
 type Editing = { id?: number; name: string; price: number } | null;
 
@@ -25,27 +26,30 @@ export default function AdminMenuPage() {
   }, [q]);
 
   const filters = useMemo(() => ({ page, pageSize, q }), [page, pageSize, q]);
-  const menuQuery = useQuery(menuPagedQueryOptions(filters));
+  const menuQuery = useMenuPaged(filters);
   const queryClient = useQueryClient();
 
-  const createMutation = useMutation({
+  const createMutation = useApiMutation({
     mutationFn: (dto: { name: string; price: number }) =>
       createMenuItem({ name: dto.name.trim(), price: dto.price }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+    onErrorMessage: setActionError,
   });
 
-  const updateMutation = useMutation({
+  const updateMutation = useApiMutation({
     mutationFn: (payload: { id: number; name: string; price: number }) =>
       updateMenuItem(String(payload.id), {
         name: payload.name.trim(),
         price: payload.price,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+    onErrorMessage: setActionError,
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useApiMutation({
     mutationFn: (id: number) => deleteMenuItem(String(id)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+    onErrorMessage: setActionError,
   });
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -82,7 +86,6 @@ export default function AdminMenuPage() {
       return;
     }
 
-    setActionError(null);
     try {
       if (payload.id != null) {
         await updateMutation.mutateAsync({ id: payload.id, name: payload.name, price: payload.price });
@@ -90,20 +93,17 @@ export default function AdminMenuPage() {
         await createMutation.mutateAsync({ name: payload.name, price: payload.price });
       }
       setEditing(null);
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Failed to save";
-      setActionError(message);
+    } catch {
+      // error already handled via useApiMutation
     }
   }
 
   const onDelete = useCallback(
     async (id: number) => {
-      setActionError(null);
       try {
         await deleteMutation.mutateAsync(id);
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Failed to delete";
-        setActionError(message);
+      } catch {
+        // error already handled via useApiMutation
       }
     },
     [deleteMutation],

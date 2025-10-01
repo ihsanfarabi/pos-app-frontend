@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { addLine, createTicket, formatIdr, payCash } from "@/lib/api";
-import { menuQueryOptions, ticketDetailQueryOptions, ticketKeys } from "@/lib/query-options";
+import { ticketKeys } from "@/lib/query-options";
+import { useApiMutation, useMenuList, useTicketDetail } from "@/lib/hooks";
 import { useRouter } from "next/navigation";
 
 export default function TicketClient({ ticketId }: { ticketId: string }) {
@@ -11,60 +12,57 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const menuQuery = useQuery(menuQueryOptions());
-  const ticketQuery = useQuery(ticketDetailQueryOptions(ticketId));
+  const menuQuery = useMenuList();
+  const ticketQuery = useTicketDetail(ticketId);
 
-  const addLineMutation = useMutation({
+  const addLineMutation = useApiMutation({
     mutationFn: (menuItemId: number) => addLine({ ticketId, menuItemId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) }),
+    onErrorMessage: setActionError,
   });
 
-  const payCashMutation = useMutation({
+  const payCashMutation = useApiMutation({
     mutationFn: () => payCash(ticketId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) });
       queryClient.invalidateQueries({ queryKey: ticketKeys.root });
     },
+    onErrorMessage: setActionError,
   });
 
-  const newTicketMutation = useMutation({
+  const newTicketMutation = useApiMutation({
     mutationFn: () => createTicket(),
     onSuccess: ({ id }) => {
       queryClient.invalidateQueries({ queryKey: ticketKeys.root });
       router.replace(`/pos/t/${id}`);
     },
+    onErrorMessage: setActionError,
   });
 
   const isBusy =
     addLineMutation.isPending || payCashMutation.isPending || newTicketMutation.isPending;
 
   async function onAdd(menuItemId: number) {
-    setActionError(null);
     try {
       await addLineMutation.mutateAsync(menuItemId);
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Failed to add line";
-      setActionError(message);
+    } catch {
+      // error handled via useApiMutation
     }
   }
 
   async function onPay() {
-    setActionError(null);
     try {
       await payCashMutation.mutateAsync();
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Failed to pay";
-      setActionError(message);
+    } catch {
+      // error handled via useApiMutation
     }
   }
 
   async function onNewTicket() {
-    setActionError(null);
     try {
       await newTicketMutation.mutateAsync();
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Failed to create ticket";
-      setActionError(message);
+    } catch {
+      // error handled via useApiMutation
     }
   }
 
