@@ -1,27 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { login } from "@/lib/api";
-import { setToken } from "@/lib/auth";
-import { useEffect } from "react";
-import { getToken } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") || "/pos";
+  const { user, login: authLogin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (token) {
-      router.replace("/");
+    if (user) {
+      router.replace(redirect);
     }
-  }, [router]);
+  }, [user, router, redirect]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -29,8 +29,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await login({ email, password });
-      setToken(res.accessToken, res.expiresIn);
-      router.push("/pos");
+      await authLogin(res.accessToken, res.expiresIn);
+      router.push(redirect);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Login failed";
       setError(message);

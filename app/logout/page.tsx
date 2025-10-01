@@ -2,10 +2,12 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { clearToken } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LogoutPage() {
   const router = useRouter();
+  const { logout } = useAuth();
+
   useEffect(() => {
     (async () => {
       try {
@@ -14,10 +16,11 @@ export default function LogoutPage() {
           credentials: "include",
         });
       } catch {}
-      clearToken();
+      logout();
       router.replace("/login");
     })();
-  }, [router]);
+  }, [router, logout]);
+
   return <p className="p-6">Signing out...</p>;
 }
 
