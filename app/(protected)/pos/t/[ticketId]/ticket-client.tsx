@@ -1,72 +1,92 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { addLine, createTicket, formatIdr, getMenu, getTicket, MenuItemDto, payCash, TicketDto } from "@/lib/api";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { addLine, createTicket, formatIdr, payCash } from "@/lib/api";
+import { menuQueryOptions, ticketDetailQueryOptions, ticketKeys } from "@/lib/query-options";
 import { useRouter } from "next/navigation";
 
 export default function TicketClient({ ticketId }: { ticketId: string }) {
   const router = useRouter();
-  const [menu, setMenu] = useState<MenuItemDto[]>([]);
-  const [ticket, setTicket] = useState<TicketDto | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const menuQuery = useQuery(menuQueryOptions());
+  const ticketQuery = useQuery(ticketDetailQueryOptions(ticketId));
+
+  const addLineMutation = useMutation({
+    mutationFn: (menuItemId: number) => addLine({ ticketId, menuItemId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) }),
+  });
+
+  const payCashMutation = useMutation({
+    mutationFn: () => payCash(ticketId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) });
+      queryClient.invalidateQueries({ queryKey: ticketKeys.root });
+    },
+  });
+
+  const newTicketMutation = useMutation({
+    mutationFn: () => createTicket(),
+    onSuccess: ({ id }) => {
+      queryClient.invalidateQueries({ queryKey: ticketKeys.root });
+      router.replace(`/pos/t/${id}`);
+    },
+  });
+
+  const isBusy =
+    addLineMutation.isPending || payCashMutation.isPending || newTicketMutation.isPending;
+
+  async function onAdd(menuItemId: number) {
+    setActionError(null);
     try {
-      const [m, t] = await Promise.all([getMenu(), getTicket(ticketId)]);
-      setMenu(m);
-      setTicket(t);
-      setError(null);
+      await addLineMutation.mutateAsync(menuItemId);
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Failed to load";
-      setError(message);
+      const message = e instanceof Error ? e.message : "Failed to add line";
+      setActionError(message);
     }
-  }, [ticketId]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  function onAdd(menuItemId: number) {
-    startTransition(async () => {
-      try {
-        await addLine({ ticketId, menuItemId });
-        await refresh();
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Failed to add line";
-        setError(message);
-      }
-    });
   }
 
-  function onPay() {
-    startTransition(async () => {
-      try {
-        await payCash(ticketId);
-        await refresh();
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Failed to pay";
-        setError(message);
-      }
-    });
+  async function onPay() {
+    setActionError(null);
+    try {
+      await payCashMutation.mutateAsync();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to pay";
+      setActionError(message);
+    }
   }
 
-  function onNewTicket() {
-    startTransition(async () => {
-      try {
-        const { id } = await createTicket();
-        router.replace(`/pos/t/${id}`);
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Failed to create ticket";
-        setError(message);
-      }
-    });
+  async function onNewTicket() {
+    setActionError(null);
+    try {
+      await newTicketMutation.mutateAsync();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to create ticket";
+      setActionError(message);
+    }
   }
+
+  const menu = menuQuery.data ?? [];
+  const ticket = ticketQuery.data;
+  const queryError =
+    menuQuery.error instanceof Error
+      ? menuQuery.error.message
+      : ticketQuery.error instanceof Error
+      ? ticketQuery.error.message
+      : null;
 
   return (
     <div className="p-6 max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
       <header className="md:col-span-2 flex items-center justify-between">
-        <button onClick={onNewTicket} disabled={isPending} className="text-sm rounded border px-3 py-1 disabled:opacity-50">New Ticket</button>
+        <button
+          onClick={onNewTicket}
+          disabled={isBusy}
+          className="text-sm rounded border px-3 py-1 disabled:opacity-50"
+        >
+          New Ticket
+        </button>
         <h1 className="text-xl font-semibold">Ticket {ticketId.slice(0, 8)}</h1>
         <div />
       </header>
@@ -78,7 +98,7 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
             <button
               key={m.id}
               onClick={() => onAdd(m.id)}
-              disabled={isPending || ticket?.status !== "Open"}
+              disabled={isBusy || ticket?.status !== "Open"}
               className="rounded border px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
             >
               <div className="font-medium">{m.name}</div>
@@ -114,7 +134,7 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
         <div className="flex items-center gap-3">
           <button
             onClick={onPay}
-            disabled={isPending || ticket?.status !== "Open"}
+            disabled={isBusy || ticket?.status !== "Open"}
             className="rounded bg-black text-white px-4 py-2 disabled:opacity-50"
           >
             Pay Cash
@@ -122,9 +142,9 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
           <span className="text-sm text-gray-500">Status: {ticket?.status ?? "Loading..."}</span>
         </div>
 
-        {error && <div className="text-sm text-red-600">{error}</div>}
+        {queryError && <div className="text-sm text-red-600">{queryError}</div>}
+        {actionError && <div className="text-sm text-red-600">{actionError}</div>}
       </section>
     </div>
   );
 }
-

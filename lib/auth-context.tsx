@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getToken, setToken as setStoredToken, clearToken as clearStoredToken } from "@/lib/auth";
-import { getMe } from "@/lib/api";
+import { authKeys, meQueryOptions } from "@/lib/query-options";
 
 type User = {
   email: string;
@@ -22,25 +23,29 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   const fetchUser = useCallback(async () => {
+    setLoading(true);
     const token = getToken();
     if (!token) {
       setUser(null);
+      queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
       setLoading(false);
       return;
     }
 
     try {
-      const me = await getMe();
+      const me = await queryClient.fetchQuery({ ...meQueryOptions(), staleTime: 0 });
       setUser({ email: me.email, role: me.role });
     } catch {
       setUser(null);
       clearStoredToken();
+      queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     fetchUser();
@@ -48,13 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (token: string, expiresIn?: number) => {
     setStoredToken(token, expiresIn);
+    queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
     await fetchUser();
-  }, [fetchUser]);
+  }, [fetchUser, queryClient]);
 
   const logout = useCallback(() => {
     clearStoredToken();
     setUser(null);
-  }, []);
+    queryClient.removeQueries({ queryKey: authKeys.me(), exact: false });
+  }, [queryClient]);
 
   const refreshUser = useCallback(async () => {
     await fetchUser();
@@ -74,4 +81,3 @@ export function useAuth() {
   }
   return context;
 }
-

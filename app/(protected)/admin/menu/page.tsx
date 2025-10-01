@@ -1,40 +1,55 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { createMenuItem, deleteMenuItem, getMenuPaged, MenuItemDto, updateMenuItem } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  createMenuItem,
+  deleteMenuItem,
+  MenuItemDto,
+  updateMenuItem,
+} from "@/lib/api";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { useUrlPaging } from "@/lib/url-paging";
+import { menuKeys, menuPagedQueryOptions } from "@/lib/query-options";
 
 type Editing = { id?: number; name: string; price: number } | null;
 
 export default function AdminMenuPage() {
-  const { page: urlPage, pageSize: urlPageSize, q, setState } = useUrlPaging({ page: 1, pageSize: 20, q: "" });
-  const [items, setItems] = useState<MenuItemDto[]>([]);
-  const [page, setPage] = useState(urlPage);
-  const [pageSize, setPageSize] = useState(urlPageSize);
-  const [total, setTotal] = useState(0);
-  const [qDraft, setQDraft] = useState(q); // input value
+  const { page, pageSize, q, setState } = useUrlPaging({ page: 1, pageSize: 20, q: "" });
   const [editing, setEditing] = useState<Editing>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  const refresh = useCallback(async (next?: { page?: number; pageSize?: number; q?: string }) => {
-    const params = {
-      page: next?.page ?? page,
-      pageSize: next?.pageSize ?? pageSize,
-      q: next?.q ?? q,
-    };
-    const res = await getMenuPaged(params);
-    setItems(res.items);
-    setPage(res.page);
-    setPageSize(res.pageSize);
-    setTotal(res.total);
-    setState({ page: res.page, pageSize: res.pageSize, q: params.q });
-  }, [page, pageSize, q, setState]);
+  const [qDraft, setQDraft] = useState(q);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    setQDraft(q);
+  }, [q]);
+
+  const filters = useMemo(() => ({ page, pageSize, q }), [page, pageSize, q]);
+  const menuQuery = useQuery(menuPagedQueryOptions(filters));
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: (dto: { name: string; price: number }) =>
+      createMenuItem({ name: dto.name.trim(), price: dto.price }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: { id: number; name: string; price: number }) =>
+      updateMenuItem(String(payload.id), {
+        name: payload.name.trim(),
+        price: payload.price,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteMenuItem(String(id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+  });
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isDeleting = deleteMutation.isPending;
 
   function onStartCreate() {
     setEditing({ name: "", price: 0 });
@@ -49,71 +64,102 @@ export default function AdminMenuPage() {
   }
 
   function onChange(field: keyof NonNullable<Editing>, value: string) {
-    setEditing((prev) => (prev ? { ...prev, [field]: field === "price" ? Number(value) : value } as Editing : prev));
+    setEditing((prev) =>
+      prev
+        ? {
+            ...prev,
+            [field]: field === "price" ? Number(value) : value,
+          }
+        : prev,
+    );
   }
 
-  function onSave() {
+  async function onSave() {
     if (!editing) return;
-    startTransition(async () => {
-      try {
-        if (editing.id != null) {
-          await updateMenuItem(String(editing.id), { name: editing.name.trim(), price: editing.price });
-        } else {
-          await createMenuItem({ name: editing.name.trim(), price: editing.price });
-        }
-        setEditing(null);
-        await refresh();
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Failed to save";
-        setError(message);
+    const payload = { ...editing, name: editing.name.trim() };
+    if (!payload.name) {
+      setActionError("Name is required");
+      return;
+    }
+
+    setActionError(null);
+    try {
+      if (payload.id != null) {
+        await updateMutation.mutateAsync({ id: payload.id, name: payload.name, price: payload.price });
+      } else {
+        await createMutation.mutateAsync({ name: payload.name, price: payload.price });
       }
-    });
+      setEditing(null);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to save";
+      setActionError(message);
+    }
   }
 
-const onDelete = useCallback((id: number) => {
-  startTransition(async () => {
-    try {
-      await deleteMenuItem(String(id));
-      await refresh();
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Failed to delete";
-      setError(message);
-    }
-  });
-}, [refresh]);
+  const onDelete = useCallback(
+    async (id: number) => {
+      setActionError(null);
+      try {
+        await deleteMutation.mutateAsync(id);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Failed to delete";
+        setActionError(message);
+      }
+    },
+    [deleteMutation],
+  );
 
   function onSearch(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setState({ page: 1, q: qDraft });
-    void refresh({ page: 1, q: qDraft });
+  }
+
+  function onPageChange(nextPage: number) {
+    setState({ page: nextPage });
   }
 
   function onPageSizeChange(newSize: number) {
-    void refresh({ page: 1, pageSize: newSize });
+    setState({ page: 1, pageSize: newSize });
   }
 
-  const columns: ColumnDef<MenuItemDto, unknown>[] = useMemo(() => [
-    {
-      header: "Name",
-      accessorKey: "name",
-      cell: ({ row }) => <span>{row.original.name}</span>,
-    },
-    {
-      header: "Price",
-      accessorKey: "price",
-      cell: ({ row }) => <span>{new Intl.NumberFormat("id-ID").format(row.original.price)}</span>,
-    },
-    {
-      header: "Actions",
-      id: "actions",
-      cell: ({ row }) => (
-        <div className="text-right space-x-2">
-          <button onClick={() => onStartEdit(row.original)} className="rounded border px-2 py-1">Edit</button>
-          <button onClick={() => onDelete(row.original.id)} className="rounded border px-2 py-1">Delete</button>
-        </div>
-      ),
-    },
-], [onDelete]);
+  const columns: ColumnDef<MenuItemDto, unknown>[] = useMemo(
+    () => [
+      {
+        header: "Name",
+        accessorKey: "name",
+        cell: ({ row }) => <span>{row.original.name}</span>,
+      },
+      {
+        header: "Price",
+        accessorKey: "price",
+        cell: ({ row }) => <span>{new Intl.NumberFormat("id-ID").format(row.original.price)}</span>,
+      },
+      {
+        header: "Actions",
+        id: "actions",
+        cell: ({ row }) => (
+          <div className="text-right space-x-2">
+            <button onClick={() => onStartEdit(row.original)} className="rounded border px-2 py-1">
+              Edit
+            </button>
+            <button
+              onClick={() => onDelete(row.original.id)}
+              disabled={isDeleting}
+              className="rounded border px-2 py-1 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [isDeleting, onDelete],
+  );
+
+  const queryError = menuQuery.error instanceof Error ? menuQuery.error.message : null;
+  const totalItems = menuQuery.data?.total ?? 0;
+  const currentPage = menuQuery.data?.page ?? page;
+  const currentPageSize = menuQuery.data?.pageSize ?? pageSize;
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
@@ -126,42 +172,68 @@ const onDelete = useCallback((id: number) => {
             onChange={(e) => setQDraft(e.target.value)}
             className="border rounded-md h-9 px-3 text-sm"
           />
-          <button className="rounded border px-3 py-2 text-sm" type="submit">Search</button>
+          <button className="rounded border px-3 py-2 text-sm" type="submit">
+            Search
+          </button>
         </form>
         <div className="flex items-center gap-2">
-          <button onClick={onStartCreate} className="rounded bg-black text-white px-3 py-2 text-sm">New Item</button>
+          <button onClick={onStartCreate} className="rounded bg-black text-white px-3 py-2 text-sm">
+            New Item
+          </button>
         </div>
       </div>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {queryError && <div className="text-sm text-red-600">{queryError}</div>}
+      {actionError && <div className="text-sm text-red-600">{actionError}</div>}
 
       {editing && (
         <div className="rounded border p-4 space-y-3">
           <div className="grid gap-2">
             <label className="text-sm">Name</label>
-            <input className="border rounded-md h-10 px-3 text-sm" value={editing.name} onChange={(e) => onChange("name", e.target.value)} />
+            <input
+              className="border rounded-md h-10 px-3 text-sm"
+              value={editing.name}
+              onChange={(e) => onChange("name", e.target.value)}
+            />
           </div>
           <div className="grid gap-2">
             <label className="text-sm">Price</label>
-            <input type="number" className="border rounded-md h-10 px-3 text-sm" value={editing.price} onChange={(e) => onChange("price", e.target.value)} />
+            <input
+              type="number"
+              className="border rounded-md h-10 px-3 text-sm"
+              value={editing.price}
+              onChange={(e) => onChange("price", e.target.value)}
+            />
           </div>
           <div className="flex items-center gap-3">
-            <button disabled={isPending} onClick={onSave} className="rounded bg-black text-white px-3 py-2 text-sm disabled:opacity-50">Save</button>
-            <button disabled={isPending} onClick={onCancel} className="rounded border px-3 py-2 text-sm disabled:opacity-50">Cancel</button>
+            <button
+              disabled={isSaving}
+              onClick={onSave}
+              className="rounded bg-black text-white px-3 py-2 text-sm disabled:opacity-50"
+            >
+              Save
+            </button>
+            <button
+              disabled={isSaving}
+              onClick={onCancel}
+              className="rounded border px-3 py-2 text-sm disabled:opacity-50"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
 
       <DataTable
         columns={columns}
-        data={items}
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        onPageChange={(p) => refresh({ page: p })}
-        onPageSizeChange={(s) => onPageSizeChange(s)}
+        data={menuQuery.data?.items ?? []}
+        page={currentPage}
+        pageSize={currentPageSize}
+        total={totalItems}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+        isLoading={menuQuery.isFetching}
       />
     </div>
   );
 }
-

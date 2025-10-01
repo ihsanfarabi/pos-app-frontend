@@ -1,23 +1,33 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTicket } from "@/lib/api";
+import { ticketKeys } from "@/lib/query-options";
 
 export default function PosEntry() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+
+  const createTicketMutation = useMutation({
+    mutationFn: () => createTicket(),
+    onSuccess: ({ id }) => {
+      queryClient.invalidateQueries({ queryKey: ticketKeys.root });
+      router.replace(`/pos/t/${id}`);
+    },
+  });
+
+  const isPending = createTicketMutation.isPending;
 
   function onCreate() {
-    startTransition(async () => {
-      try {
-        const { id } = await createTicket();
-        router.replace(`/pos/t/${id}`);
-      } catch (e: unknown) {
+    setError(null);
+    createTicketMutation.mutate(undefined, {
+      onError: (e) => {
         const message = e instanceof Error ? e.message : "Failed to start ticket";
         setError(message);
-      }
+      },
     });
   }
 
@@ -34,4 +44,3 @@ export default function PosEntry() {
     </div>
   );
 }
-
