@@ -1,15 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { createMenuItem, deleteMenuItem, getMe, getMenuPaged, MenuItemDto, updateMenuItem } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { createMenuItem, deleteMenuItem, getMenuPaged, MenuItemDto, updateMenuItem } from "@/lib/api";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { useUrlPaging } from "@/lib/url-paging";
 
 type Editing = { id?: number; name: string; price: number } | null;
 
 export default function AdminMenuPage() {
-  const router = useRouter();
   const { page: urlPage, pageSize: urlPageSize, q, setState } = useUrlPaging({ page: 1, pageSize: 20, q: "" });
   const [items, setItems] = useState<MenuItemDto[]>([]);
   const [page, setPage] = useState(urlPage);
@@ -35,20 +33,8 @@ export default function AdminMenuPage() {
   }, [page, pageSize, q, setState]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const me = await getMe();
-        if (me.role !== "admin") {
-          router.replace("/pos");
-          return;
-        }
-        await refresh();
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Failed to load";
-        setError(message);
-      }
-    })();
-  }, [router, refresh]);
+    refresh();
+  }, [refresh]);
 
   function onStartCreate() {
     setEditing({ name: "", price: 0 });
@@ -102,7 +88,6 @@ const onDelete = useCallback((id: number) => {
     void refresh({ page: 1, q: qDraft });
   }
 
-// totalPages not used directly in DataTable anymore
   function onPageSizeChange(newSize: number) {
     void refresh({ page: 1, pageSize: newSize });
   }
@@ -179,5 +164,4 @@ const onDelete = useCallback((id: number) => {
     </div>
   );
 }
-
 

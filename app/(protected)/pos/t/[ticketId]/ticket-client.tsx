@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { addLine, createTicket, formatIdr, getMe, getMenu, getTicket, MenuItemDto, payCash, TicketDto } from "@/lib/api";
+import { addLine, createTicket, formatIdr, getMenu, getTicket, MenuItemDto, payCash, TicketDto } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 export default function TicketClient({ ticketId }: { ticketId: string }) {
@@ -10,7 +10,6 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   const [ticket, setTicket] = useState<TicketDto | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [, setRole] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -25,14 +24,8 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   }, [ticketId]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const me = await getMe();
-        setRole(me.role);
-      } catch {}
-      await refresh();
-    })();
-  }, [refresh, router]);
+    refresh();
+  }, [refresh]);
 
   function onAdd(menuItemId: number) {
     startTransition(async () => {
@@ -134,5 +127,4 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
     </div>
   );
 }
-
 

@@ -5,4 +5,3 @@ export default async function TicketPage({ params }: { params: Promise<{ ticketI
   return <TicketClient ticketId={ticketId} />;
 }
 
-

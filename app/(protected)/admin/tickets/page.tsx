@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { getMe, getTicketsPaged, type TicketListItem } from "@/lib/api";
+import { getTicketsPaged, type TicketListItem } from "@/lib/api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 export default function AdminTicketsPage() {
@@ -16,7 +16,6 @@ export default function AdminTicketsPage() {
   const [page, setPage] = useState(initialPage);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [total, setTotal] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const refresh = useCallback(async (next?: { page?: number; pageSize?: number }) => {
@@ -39,20 +38,8 @@ export default function AdminTicketsPage() {
   }, [page, pageSize, pathname, router]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const me = await getMe();
-        if (me.role !== "admin") {
-          router.replace("/pos");
-          return;
-        }
-        await refresh();
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : "Failed to load";
-        setError(message);
-      }
-    })();
-  }, [router, refresh]);
+    refresh();
+  }, [refresh]);
 
   const onPageSizeChange = useCallback((newSize: number) => {
     startTransition(() => {
@@ -84,8 +71,6 @@ export default function AdminTicketsPage() {
         <h1 className="text-xl font-semibold">Admin: Tickets</h1>
       </div>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
-
       <DataTable
         columns={columns}
         data={items}
@@ -99,5 +84,4 @@ export default function AdminTicketsPage() {
     </div>
   );
 }
-
 
