@@ -14,6 +14,7 @@ import {
   type TicketsPagedResult,
 } from "@/lib/query-options";
 import { useNotifications } from "@/components/ui/notification-provider";
+import { ApiError, type ValidationErrors } from "@/lib/http";
 
 export function useMenuPaged(filters: MenuPagedFilters) {
   const query = useQuery(menuPagedQueryOptions(filters));
@@ -43,6 +44,8 @@ export type { MenuPagedFilters, MenuPagedResult, TicketsPagedResult, TicketPaged
 
 type ErrorSetter = (message: string | null) => void;
 
+type ValidationErrorSetter = (errors: ValidationErrors | null) => void;
+
 type ApiMutationOptions<TData, TError, TVariables, TContext> = UseMutationOptions<
   TData,
   TError,
@@ -50,19 +53,21 @@ type ApiMutationOptions<TData, TError, TVariables, TContext> = UseMutationOption
   TContext
 > & {
   onErrorMessage?: ErrorSetter;
+  onValidationError?: ValidationErrorSetter;
   disableErrorToast?: boolean;
 };
 
 export function useApiMutation<TData = unknown, TError = unknown, TVariables = void, TContext = unknown>(
   options: ApiMutationOptions<TData, TError, TVariables, TContext>,
 ) {
-  const { onErrorMessage, onError, onMutate, disableErrorToast, ...rest } = options;
+  const { onErrorMessage, onValidationError, onError, onMutate, disableErrorToast, ...rest } = options;
   const { notifyError } = useNotifications();
 
   return useMutation({
     ...rest,
     onMutate: (variables, context) => {
       if (onErrorMessage) onErrorMessage(null);
+      if (onValidationError) onValidationError(null);
       if (onMutate) {
         return onMutate(variables, context);
       }
@@ -73,7 +78,16 @@ export function useApiMutation<TData = unknown, TError = unknown, TVariables = v
         const message = resolveErrorMessage(error);
         onErrorMessage(message);
       }
-      if (!disableErrorToast) {
+      if (onValidationError) {
+        if (error instanceof ApiError && error.fieldErrors) {
+          onValidationError(error.fieldErrors);
+        } else {
+          onValidationError(null);
+        }
+      }
+      const hasValidationDetails = error instanceof ApiError && !!error.fieldErrors;
+      const shouldSkipToast = disableErrorToast || (hasValidationDetails && !!onValidationError);
+      if (!shouldSkipToast) {
         const message = resolveErrorMessage(error);
         notifyError(message);
       }

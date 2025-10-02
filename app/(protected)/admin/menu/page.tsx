@@ -9,10 +9,10 @@ import {
   updateMenuItem,
 } from "@/lib/api";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { useNotifications } from "@/components/ui/notification-provider";
 import { useUrlPaging } from "@/lib/url-paging";
 import { menuKeys } from "@/lib/query-options";
 import { useApiMutation, useMenuPaged } from "@/lib/hooks";
+import type { ValidationErrors } from "@/lib/http";
 
 type Editing = { id?: number; name: string; price: number } | null;
 
@@ -20,7 +20,7 @@ export default function AdminMenuPage() {
   const { page, pageSize, q, setState } = useUrlPaging({ page: 1, pageSize: 20, q: "" });
   const [editing, setEditing] = useState<Editing>(null);
   const [qDraft, setQDraft] = useState(q);
-  const { notifyError } = useNotifications();
+  const [formErrors, setFormErrors] = useState<ValidationErrors | null>(null);
 
   useEffect(() => {
     setQDraft(q);
@@ -30,10 +30,15 @@ export default function AdminMenuPage() {
   const menuQuery = useMenuPaged(filters);
   const queryClient = useQueryClient();
 
+  const handleValidationError = useCallback((errors: ValidationErrors | null) => {
+    setFormErrors(errors);
+  }, []);
+
   const createMutation = useApiMutation({
     mutationFn: (dto: { name: string; price: number }) =>
       createMenuItem({ name: dto.name.trim(), price: dto.price }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+    onValidationError: handleValidationError,
   });
 
   const updateMutation = useApiMutation({
@@ -43,6 +48,7 @@ export default function AdminMenuPage() {
         price: payload.price,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+    onValidationError: handleValidationError,
   });
 
   const deleteMutation = useApiMutation({
@@ -55,14 +61,17 @@ export default function AdminMenuPage() {
 
   function onStartCreate() {
     setEditing({ name: "", price: 0 });
+    setFormErrors(null);
   }
 
   function onStartEdit(item: MenuItemDto) {
     setEditing({ id: item.id, name: item.name, price: item.price });
+    setFormErrors(null);
   }
 
   function onCancel() {
     setEditing(null);
+    setFormErrors(null);
   }
 
   function onChange(field: keyof NonNullable<Editing>, value: string) {
@@ -74,15 +83,17 @@ export default function AdminMenuPage() {
           }
         : prev,
     );
+    setFormErrors((prev) => {
+      if (!prev) return prev;
+      if (!(field in prev)) return prev;
+      const { [field]: _removed, ...rest } = prev;
+      return Object.keys(rest).length === 0 ? null : rest;
+    });
   }
 
   async function onSave() {
     if (!editing) return;
     const payload = { ...editing, name: editing.name.trim() };
-    if (!payload.name) {
-      notifyError("Name is required");
-      return;
-    }
 
     try {
       if (payload.id != null) {
@@ -91,6 +102,7 @@ export default function AdminMenuPage() {
         await createMutation.mutateAsync({ name: payload.name, price: payload.price });
       }
       setEditing(null);
+      setFormErrors(null);
     } catch {
       // error already handled via useApiMutation
     }
@@ -189,6 +201,9 @@ export default function AdminMenuPage() {
               value={editing.name}
               onChange={(e) => onChange("name", e.target.value)}
             />
+            {formErrors?.name && formErrors.name[0] && (
+              <p className="text-sm text-red-600">{formErrors.name[0]}</p>
+            )}
           </div>
           <div className="grid gap-2">
             <label className="text-sm">Price</label>
@@ -198,6 +213,9 @@ export default function AdminMenuPage() {
               value={editing.price}
               onChange={(e) => onChange("price", e.target.value)}
             />
+            {formErrors?.price && formErrors.price[0] && (
+              <p className="text-sm text-red-600">{formErrors.price[0]}</p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button

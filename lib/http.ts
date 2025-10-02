@@ -1,6 +1,20 @@
 import axios, { AxiosError, AxiosHeaders, type AxiosRequestConfig } from "axios";
 import { clearToken, getToken, setToken } from "@/lib/auth";
 
+export type ValidationErrors = Record<string, string[]>;
+
+export class ApiError extends Error {
+  status?: number;
+  fieldErrors?: ValidationErrors;
+
+  constructor(message: string, options?: { status?: number; fieldErrors?: ValidationErrors }) {
+    super(message);
+    this.name = "ApiError";
+    this.status = options?.status;
+    this.fieldErrors = options?.fieldErrors;
+  }
+}
+
 declare module "axios" {
   // Allow custom flags on request config for auth handling.
   interface AxiosRequestConfig {
@@ -62,17 +76,70 @@ function setAuthHeader(config: AxiosRequestConfig, token: string) {
   }
 }
 
-function extractErrorMessage(error: AxiosError): string {
+function toCamelCase(key: string) {
+  if (!key) return key;
+  return key[0].toLowerCase() + key.slice(1);
+}
+
+function normalizeValidationErrors(value: unknown): ValidationErrors | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+
+  const entries = Object.entries(value as Record<string, unknown>);
+  const result: ValidationErrors = {};
+  let hasAny = false;
+
+  for (const [rawKey, raw] of entries) {
+    const key = toCamelCase(rawKey);
+    if (Array.isArray(raw)) {
+      const messages = raw
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .map((item) => item.trim());
+      if (messages.length > 0) {
+        result[key] = messages;
+        hasAny = true;
+      }
+      continue;
+    }
+
+    if (typeof raw === "string" && raw.trim().length > 0) {
+      result[key] = [raw.trim()];
+      hasAny = true;
+    }
+  }
+
+  return hasAny ? result : undefined;
+}
+
+function extractErrorDetails(error: AxiosError): { message: string; fieldErrors?: ValidationErrors } {
   const fallback = "Request failed";
-  const data = error.response?.data as { message?: unknown; error?: unknown } | undefined;
-  const messageCandidate = data?.message ?? data?.error;
-  if (typeof messageCandidate === "string" && messageCandidate.trim()) {
-    return messageCandidate;
+  const data = error.response?.data as {
+    message?: unknown;
+    error?: unknown;
+    title?: unknown;
+    errors?: unknown;
+  } | null;
+
+  const fieldErrors = normalizeValidationErrors(data?.errors);
+
+  const firstFieldMessage = fieldErrors
+    ? Object.values(fieldErrors).flat().find((msg) => typeof msg === "string" && msg.trim().length > 0)
+    : undefined;
+
+  const messageCandidate =
+    data?.message ??
+    data?.error ??
+    firstFieldMessage ??
+    data?.title;
+
+  if (typeof messageCandidate === "string" && messageCandidate.trim().length > 0) {
+    return { message: messageCandidate.trim(), fieldErrors };
   }
-  if (typeof error.message === "string" && error.message.trim()) {
-    return error.message;
+
+  if (typeof error.message === "string" && error.message.trim().length > 0) {
+    return { message: error.message, fieldErrors };
   }
-  return fallback;
+
+  return { message: fallback, fieldErrors };
 }
 
 function redirectToLogin() {
@@ -115,8 +182,13 @@ apiClient.interceptors.response.use(
       redirectToLogin();
     }
 
-    const message = extractErrorMessage(error);
-    return Promise.reject(new Error(message));
+    const { message, fieldErrors } = extractErrorDetails(error);
+    return Promise.reject(
+      new ApiError(message, {
+        status: error.response?.status,
+        fieldErrors,
+      }),
+    );
   },
 );
 
