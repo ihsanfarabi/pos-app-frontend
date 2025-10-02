@@ -11,6 +11,7 @@ import {
   type TicketListItem,
   type MeResponse,
 } from "@/lib/api";
+import { PAGING_DEFAULTS } from "@/lib/paging";
 
 export type MenuPagedFilters = {
   page: number;
@@ -23,11 +24,6 @@ export type TicketPagedFilters = {
   pageSize: number;
 };
 
-const MENU_PAGE_DEFAULT = 1;
-const MENU_PAGE_SIZE_DEFAULT = 20;
-const TICKET_PAGE_DEFAULT = 1;
-const TICKET_PAGE_SIZE_DEFAULT = 20;
-
 export const menuKeys = {
   root: ["menu"] as const,
   all: () => ["menu"] as const,
@@ -36,9 +32,9 @@ export const menuKeys = {
     [
       "menu",
       "paged",
-      filters.page ?? MENU_PAGE_DEFAULT,
-      filters.pageSize ?? MENU_PAGE_SIZE_DEFAULT,
-      filters.q?.trim() ?? "",
+      filters.page ?? PAGING_DEFAULTS.page,
+      filters.pageSize ?? PAGING_DEFAULTS.pageSize,
+      filters.q?.trim() ?? PAGING_DEFAULTS.q,
     ] as const,
 };
 
@@ -48,8 +44,8 @@ export const ticketKeys = {
     [
       "tickets",
       "paged",
-      filters.page ?? TICKET_PAGE_DEFAULT,
-      filters.pageSize ?? TICKET_PAGE_SIZE_DEFAULT,
+      filters.page ?? PAGING_DEFAULTS.page,
+      filters.pageSize ?? PAGING_DEFAULTS.pageSize,
     ] as const,
   detail: (ticketId: string) => ["tickets", "detail", ticketId] as const,
 };
@@ -60,8 +56,8 @@ export const authKeys = {
 
 export function menuPagedQueryOptions(filters: MenuPagedFilters) {
   const params: MenuPagedFilters = {
-    page: filters.page,
-    pageSize: filters.pageSize,
+    page: filters.page ?? PAGING_DEFAULTS.page,
+    pageSize: filters.pageSize ?? PAGING_DEFAULTS.pageSize,
     q: filters.q?.trim() ? filters.q.trim() : undefined,
   };
 
@@ -81,8 +77,8 @@ export function menuQueryOptions() {
 
 export function ticketsPagedQueryOptions(filters: TicketPagedFilters) {
   const params: TicketPagedFilters = {
-    page: filters.page,
-    pageSize: filters.pageSize,
+    page: filters.page ?? PAGING_DEFAULTS.page,
+    pageSize: filters.pageSize ?? PAGING_DEFAULTS.pageSize,
   };
 
   return queryOptions({
