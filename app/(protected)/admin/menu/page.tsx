@@ -9,6 +9,7 @@ import {
   updateMenuItem,
 } from "@/lib/api";
 import { DataTable, type ColumnDef } from "@/components/data-table";
+import { useNotifications } from "@/components/ui/notification-provider";
 import { useUrlPaging } from "@/lib/url-paging";
 import { menuKeys } from "@/lib/query-options";
 import { useApiMutation, useMenuPaged } from "@/lib/hooks";
@@ -19,7 +20,7 @@ export default function AdminMenuPage() {
   const { page, pageSize, q, setState } = useUrlPaging({ page: 1, pageSize: 20, q: "" });
   const [editing, setEditing] = useState<Editing>(null);
   const [qDraft, setQDraft] = useState(q);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const { notifyError } = useNotifications();
 
   useEffect(() => {
     setQDraft(q);
@@ -33,7 +34,6 @@ export default function AdminMenuPage() {
     mutationFn: (dto: { name: string; price: number }) =>
       createMenuItem({ name: dto.name.trim(), price: dto.price }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
-    onErrorMessage: setActionError,
   });
 
   const updateMutation = useApiMutation({
@@ -43,13 +43,11 @@ export default function AdminMenuPage() {
         price: payload.price,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
-    onErrorMessage: setActionError,
   });
 
   const deleteMutation = useApiMutation({
     mutationFn: (id: number) => deleteMenuItem(String(id)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
-    onErrorMessage: setActionError,
   });
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -82,7 +80,7 @@ export default function AdminMenuPage() {
     if (!editing) return;
     const payload = { ...editing, name: editing.name.trim() };
     if (!payload.name) {
-      setActionError("Name is required");
+      notifyError("Name is required");
       return;
     }
 
@@ -156,7 +154,6 @@ export default function AdminMenuPage() {
     [isDeleting, onDelete],
   );
 
-  const queryError = menuQuery.error instanceof Error ? menuQuery.error.message : null;
   const totalItems = menuQuery.data?.total ?? 0;
   const currentPage = menuQuery.data?.page ?? page;
   const currentPageSize = menuQuery.data?.pageSize ?? pageSize;
@@ -182,9 +179,6 @@ export default function AdminMenuPage() {
           </button>
         </div>
       </div>
-
-      {queryError && <div className="text-sm text-red-600">{queryError}</div>}
-      {actionError && <div className="text-sm text-red-600">{actionError}</div>}
 
       {editing && (
         <div className="rounded border p-4 space-y-3">

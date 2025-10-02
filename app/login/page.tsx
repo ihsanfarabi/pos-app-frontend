@@ -15,11 +15,8 @@ function LoginPageInner() {
   const { user, login: authLogin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
   const loginMutation = useApiMutation({
     mutationFn: login,
-    onErrorMessage: (message) => setError(message ?? null),
     onSuccess: async (res) => {
       await authLogin(res.accessToken, res.expiresIn);
       router.push(redirect);
@@ -72,11 +69,6 @@ function LoginPageInner() {
                 className="border rounded-md h-10 px-3 text-sm bg-background"
               />
             </div>
-            {error && (
-              <p className="text-sm text-red-600" role="alert">
-                {error}
-              </p>
-            )}
             <Button type="submit" disabled={loginMutation.isPending}>
               {loginMutation.isPending ? "Signing in..." : "Sign in"}
             </Button>

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { addLine, createTicket, formatIdr, payCash } from "@/lib/api";
 import { ticketKeys } from "@/lib/query-options";
@@ -10,7 +9,6 @@ import { useRouter } from "next/navigation";
 export default function TicketClient({ ticketId }: { ticketId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const menuQuery = useMenuList();
   const ticketQuery = useTicketDetail(ticketId);
@@ -18,7 +16,6 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   const addLineMutation = useApiMutation({
     mutationFn: (menuItemId: number) => addLine({ ticketId, menuItemId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) }),
-    onErrorMessage: setActionError,
   });
 
   const payCashMutation = useApiMutation({
@@ -27,7 +24,6 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
       queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) });
       queryClient.invalidateQueries({ queryKey: ticketKeys.root });
     },
-    onErrorMessage: setActionError,
   });
 
   const newTicketMutation = useApiMutation({
@@ -36,7 +32,6 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
       queryClient.invalidateQueries({ queryKey: ticketKeys.root });
       router.replace(`/pos/t/${id}`);
     },
-    onErrorMessage: setActionError,
   });
 
   const isBusy =
@@ -68,12 +63,6 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
 
   const menu = menuQuery.data ?? [];
   const ticket = ticketQuery.data;
-  const queryError =
-    menuQuery.error instanceof Error
-      ? menuQuery.error.message
-      : ticketQuery.error instanceof Error
-      ? ticketQuery.error.message
-      : null;
 
   return (
     <div className="p-6 max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -139,9 +128,6 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
           </button>
           <span className="text-sm text-gray-500">Status: {ticket?.status ?? "Loading..."}</span>
         </div>
-
-        {queryError && <div className="text-sm text-red-600">{queryError}</div>}
-        {actionError && <div className="text-sm text-red-600">{actionError}</div>}
       </section>
     </div>
   );

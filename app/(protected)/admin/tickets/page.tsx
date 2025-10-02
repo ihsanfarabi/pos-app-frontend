@@ -33,7 +33,6 @@ export default function AdminTicketsPage() {
     [],
   );
 
-  const queryError = ticketsQuery.error instanceof Error ? ticketsQuery.error.message : null;
   const totalItems = ticketsQuery.data?.total ?? 0;
   const currentPage = ticketsQuery.data?.page ?? page;
   const currentPageSize = ticketsQuery.data?.pageSize ?? pageSize;
@@ -51,8 +50,6 @@ export default function AdminTicketsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Admin: Tickets</h1>
       </div>
-
-      {queryError && <div className="text-sm text-red-600">{queryError}</div>}
 
       <DataTable
         columns={columns}
