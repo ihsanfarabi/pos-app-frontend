@@ -30,7 +30,7 @@ function LoginPageInner() {
   const loginMutation = useApiMutation({
     mutationFn: login,
     onSuccess: async (res) => {
-      await authLogin(res.accessToken, res.expiresIn);
+      await authLogin(res.access_token, res.expires_in);
       router.push(redirect);
     },
     onValidationError: setFieldErrors,

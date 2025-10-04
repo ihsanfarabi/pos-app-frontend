@@ -1,7 +1,7 @@
 import { apiClient } from "@/lib/http";
 
 export type LoginRequest = { email: string; password: string };
-export type LoginResponse = { accessToken: string; expiresIn: number };
+export type LoginResponse = { access_token: string; expires_in: number };
 
 export type MenuItemDto = {
   id: number;
@@ -25,26 +25,13 @@ export type TicketDto = {
   total: number;
 };
 
-type LoginResponseRaw = {
-  accessToken?: string;
-  expiresIn?: number;
-  access_token?: string;
-  expires_in?: number;
-};
-
-function normalizeLoginResponse(body: LoginResponseRaw): LoginResponse {
-  const accessToken = body.accessToken ?? body.access_token ?? "";
-  const expiresIn = body.expiresIn ?? body.expires_in ?? 0;
-  return { accessToken, expiresIn };
-}
-
 export async function login(params: LoginRequest): Promise<LoginResponse> {
-  const res = await apiClient.post<LoginResponseRaw>(
+  const res = await apiClient.post<LoginResponse>(
     "/api/auth/login",
     { email: params.email, password: params.password },
     { skipAuth: true },
   );
-  return normalizeLoginResponse(res.data);
+  return res.data;
 }
 
 export async function getMenu(): Promise<MenuItemDto[]> {
