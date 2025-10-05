@@ -35,18 +35,23 @@ export async function login(params: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function getMenu(): Promise<MenuItemDto[]> {
-  const res = await apiClient.get<MenuItemDto[]>("/api/menu");
+  const res = await getMenuPaged({ pageIndex: 0, pageSize: 100 });
   return res.data;
 }
 
-export type Paged<T> = { items: T[]; page: number; pageSize: number; total: number };
+export type Paginated<T> = {
+  data: T[];
+  pageIndex: number;
+  pageSize: number;
+  count: number;
+};
 
-export type MenuPagedRequest = { page?: number; pageSize?: number; q?: string };
+export type MenuPagedRequest = { pageIndex?: number; pageSize?: number; q?: string };
 
-export async function getMenuPaged(params: MenuPagedRequest = {}): Promise<Paged<MenuItemDto>> {
-  const res = await apiClient.get<Paged<MenuItemDto>>("/api/menu", {
+export async function getMenuPaged(params: MenuPagedRequest = {}): Promise<Paginated<MenuItemDto>> {
+  const res = await apiClient.get<Paginated<MenuItemDto>>("/api/menu", {
     params: {
-      page: params.page,
+      pageIndex: params.pageIndex,
       pageSize: params.pageSize,
       q: params.q?.trim() ? params.q.trim() : undefined,
     },
@@ -56,12 +61,14 @@ export async function getMenuPaged(params: MenuPagedRequest = {}): Promise<Paged
 
 export type TicketListItem = { id: string; status: string; createdAt: string };
 
-export type TicketsPagedRequest = { page?: number; pageSize?: number };
+export type TicketsPagedRequest = { pageIndex?: number; pageSize?: number };
 
-export async function getTicketsPaged(params: TicketsPagedRequest = {}): Promise<Paged<TicketListItem>> {
-  const res = await apiClient.get<Paged<TicketListItem>>("/api/tickets", {
+export async function getTicketsPaged(
+  params: TicketsPagedRequest = {},
+): Promise<Paginated<TicketListItem>> {
+  const res = await apiClient.get<Paginated<TicketListItem>>("/api/tickets", {
     params: {
-      page: params.page,
+      pageIndex: params.pageIndex,
       pageSize: params.pageSize,
     },
   });

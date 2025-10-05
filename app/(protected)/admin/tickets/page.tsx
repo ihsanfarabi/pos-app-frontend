@@ -33,8 +33,8 @@ export default function AdminTicketsPage() {
     [],
   );
 
-  const totalItems = ticketsQuery.data?.total ?? 0;
-  const currentPage = ticketsQuery.data?.page ?? page;
+  const totalItems = ticketsQuery.data?.count ?? 0;
+  const currentPage = (ticketsQuery.data?.pageIndex ?? page - 1) + 1;
   const currentPageSize = ticketsQuery.data?.pageSize ?? pageSize;
 
   function onPageChange(nextPage: number) {
@@ -53,7 +53,7 @@ export default function AdminTicketsPage() {
 
       <DataTable
         columns={columns}
-        data={ticketsQuery.data?.items ?? []}
+        data={ticketsQuery.data?.data ?? []}
         page={currentPage}
         pageSize={currentPageSize}
         total={totalItems}

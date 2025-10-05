@@ -166,8 +166,8 @@ export default function AdminMenuPage() {
     [isDeleting, onDelete],
   );
 
-  const totalItems = menuQuery.data?.total ?? 0;
-  const currentPage = menuQuery.data?.page ?? page;
+  const totalItems = menuQuery.data?.count ?? 0;
+  const currentPage = (menuQuery.data?.pageIndex ?? page - 1) + 1;
   const currentPageSize = menuQuery.data?.pageSize ?? pageSize;
 
   return (
@@ -238,7 +238,7 @@ export default function AdminMenuPage() {
 
       <DataTable
         columns={columns}
-        data={menuQuery.data?.items ?? []}
+        data={menuQuery.data?.data ?? []}
         page={currentPage}
         pageSize={currentPageSize}
         total={totalItems}

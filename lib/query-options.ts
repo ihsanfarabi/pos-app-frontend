@@ -6,7 +6,7 @@ import {
   getTicketsPaged,
   getMe,
   type MenuItemDto,
-  type Paged,
+  type Paginated,
   type TicketDto,
   type TicketListItem,
   type MeResponse,
@@ -55,8 +55,9 @@ export const authKeys = {
 };
 
 export function menuPagedQueryOptions(filters: MenuPagedFilters) {
-  const params: MenuPagedFilters = {
-    page: filters.page ?? PAGING_DEFAULTS.page,
+  const normalizedPage = filters.page ?? PAGING_DEFAULTS.page;
+  const params = {
+    pageIndex: Math.max(0, normalizedPage - 1),
     pageSize: filters.pageSize ?? PAGING_DEFAULTS.pageSize,
     q: filters.q?.trim() ? filters.q.trim() : undefined,
   };
@@ -76,8 +77,9 @@ export function menuQueryOptions() {
 }
 
 export function ticketsPagedQueryOptions(filters: TicketPagedFilters) {
-  const params: TicketPagedFilters = {
-    page: filters.page ?? PAGING_DEFAULTS.page,
+  const normalizedPage = filters.page ?? PAGING_DEFAULTS.page;
+  const params = {
+    pageIndex: Math.max(0, normalizedPage - 1),
     pageSize: filters.pageSize ?? PAGING_DEFAULTS.pageSize,
   };
 
@@ -103,7 +105,7 @@ export function meQueryOptions() {
   });
 }
 
-export type MenuPagedResult = Paged<MenuItemDto>;
-export type TicketsPagedResult = Paged<TicketListItem>;
+export type MenuPagedResult = Paginated<MenuItemDto>;
+export type TicketsPagedResult = Paginated<TicketListItem>;
 export type TicketDetailResult = TicketDto;
 export type MeResult = MeResponse;
