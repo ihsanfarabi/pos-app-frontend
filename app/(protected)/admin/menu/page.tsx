@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/components/ui/notification-provider";
 import FormErrorSummary from "@/components/ui/form-error-summary";
+import FormFieldError from "@/components/ui/form-field-error";
 
 type Editing = { id?: string; name: string; price: number } | null;
 
@@ -74,13 +75,8 @@ export default function AdminMenuPage() {
     },
     onValidationError: handleValidationError,
     onErrorMessage: handleErrorMessage,
+    onApiError: (err) => setTraceId(err.traceId ?? null),
     disableErrorToast: true,
-    onError: (error: unknown) => {
-      if (error && typeof error === "object" && "traceId" in error) {
-        const t = (error as { traceId?: unknown }).traceId;
-        if (typeof t === "string") setTraceId(t);
-      }
-    },
   });
 
   const updateMutation = useApiMutation({
@@ -95,13 +91,8 @@ export default function AdminMenuPage() {
     },
     onValidationError: handleValidationError,
     onErrorMessage: handleErrorMessage,
+    onApiError: (err) => setTraceId(err.traceId ?? null),
     disableErrorToast: true,
-    onError: (error: unknown) => {
-      if (error && typeof error === "object" && "traceId" in error) {
-        const t = (error as { traceId?: unknown }).traceId;
-        if (typeof t === "string") setTraceId(t);
-      }
-    },
   });
 
   const deleteMutation = useApiMutation({
@@ -272,10 +263,9 @@ export default function AdminMenuPage() {
               value={editing.name}
               onChange={(e) => onChange("name", e.target.value)}
               aria-invalid={!!formErrors?.name}
+              aria-describedby={formErrors?.name ? "name-error" : undefined}
             />
-            {formErrors?.name && formErrors.name[0] && (
-              <p className="text-sm text-red-600">{formErrors.name[0]}</p>
-            )}
+            <FormFieldError id="name-error" message={formErrors?.name?.[0]} />
           </div>
           <div className="grid gap-2">
             <label className="text-sm">Price</label>
@@ -284,10 +274,9 @@ export default function AdminMenuPage() {
               value={editing.price}
               onChange={(e) => onChange("price", e.target.value)}
               aria-invalid={!!formErrors?.price}
+              aria-describedby={formErrors?.price ? "price-error" : undefined}
             />
-            {formErrors?.price && formErrors.price[0] && (
-              <p className="text-sm text-red-600">{formErrors.price[0]}</p>
-            )}
+            <FormFieldError id="price-error" message={formErrors?.price?.[0]} />
           </div>
           <div className="flex items-center gap-3">
             <Button disabled={isSaving} onClick={onSave}>

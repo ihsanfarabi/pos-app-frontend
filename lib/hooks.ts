@@ -54,13 +54,14 @@ type ApiMutationOptions<TData, TError, TVariables, TContext> = UseMutationOption
 > & {
   onErrorMessage?: ErrorSetter;
   onValidationError?: ValidationErrorSetter;
+  onApiError?: (error: ApiError) => void;
   disableErrorToast?: boolean;
 };
 
 export function useApiMutation<TData = unknown, TError = unknown, TVariables = void, TContext = unknown>(
   options: ApiMutationOptions<TData, TError, TVariables, TContext>,
 ) {
-  const { onErrorMessage, onValidationError, onError, onMutate, disableErrorToast, ...rest } = options;
+  const { onErrorMessage, onValidationError, onApiError, onError, onMutate, disableErrorToast, ...rest } = options;
   const { notifyError } = useNotifications();
 
   return useMutation({
@@ -74,6 +75,9 @@ export function useApiMutation<TData = unknown, TError = unknown, TVariables = v
       return undefined as unknown as TContext;
     },
     onError: (error, variables, onMutateResult, context) => {
+      if (error instanceof ApiError) {
+        onApiError?.(error);
+      }
       if (onErrorMessage) {
         const message = resolveErrorMessage(error);
         onErrorMessage(message);
@@ -121,6 +125,12 @@ function resolveErrorMessage(error: unknown, fallback = "Request failed") {
   }
   if (typeof error === "string" && error.trim()) {
     return error.trim();
+  }
+  if (error instanceof ApiError) {
+    if (error.status === 400 && error.fieldErrors) return "Please correct the highlighted fields.";
+    if (error.status === 403) return "You don't have permission to perform this action.";
+    if (error.status === 404) return "The requested resource was not found.";
+    if (typeof error.status === "number" && error.status >= 500) return "Server error. Please try again.";
   }
   return fallback;
 }

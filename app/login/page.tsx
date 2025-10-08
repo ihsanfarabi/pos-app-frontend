@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useApiMutation } from "@/lib/hooks";
 import type { ValidationErrors } from "@/lib/http";
 import FormErrorSummary from "@/components/ui/form-error-summary";
+import FormFieldError from "@/components/ui/form-field-error";
 
 function LoginPageInner() {
   const router = useRouter();
@@ -49,13 +50,8 @@ function LoginPageInner() {
     },
     onValidationError: setFieldErrors,
     onErrorMessage: handleErrorMessage,
+    onApiError: (err) => setTraceId(err.traceId ?? null),
     disableErrorToast: true,
-    onError: (error: unknown) => {
-      if (error && typeof error === "object" && "traceId" in error) {
-        const t = (error as { traceId?: unknown }).traceId;
-        if (typeof t === "string") setTraceId(t);
-      }
-    },
   });
 
   useEffect(() => {
@@ -102,10 +98,9 @@ function LoginPageInner() {
                   });
                 }}
                 aria-invalid={!!fieldErrors?.email}
+                aria-describedby={fieldErrors?.email ? "email-error" : undefined}
               />
-              {fieldErrors?.email && fieldErrors.email[0] && (
-                <p className="text-sm text-red-600">{fieldErrors.email[0]}</p>
-              )}
+              <FormFieldError id="email-error" message={fieldErrors?.email?.[0]} />
             </div>
             <div className="grid gap-2">
               <label htmlFor="password" className="text-sm font-medium">Password</label>
@@ -127,12 +122,10 @@ function LoginPageInner() {
                   });
                 }}
                 aria-invalid={!!fieldErrors?.password}
+                aria-describedby={fieldErrors?.password ? "password-error" : undefined}
               />
-              {fieldErrors?.password && fieldErrors.password[0] && (
-                <p className="text-sm text-red-600">{fieldErrors.password[0]}</p>
-              )}
+              <FormFieldError id="password-error" message={fieldErrors?.password?.[0]} />
             </div>
-            {formError && <p className="text-sm text-red-600">{formError}</p>}
             <Button type="submit" disabled={loginMutation.isPending}>
               {loginMutation.isPending ? "Signing in..." : "Sign in"}
             </Button>
