@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { login, type LoginRequest } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -13,6 +14,7 @@ function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get("redirect");
+  const loggedOut = searchParams.get("loggedOut") === "1";
   const redirect = useMemo(() => {
     if (!rawRedirect || !rawRedirect.startsWith("/")) return "/pos";
     try {
@@ -66,10 +68,13 @@ function LoginPageInner() {
           <CardDescription>Use your email and password to continue.</CardDescription>
         </CardHeader>
         <CardContent>
+          {loggedOut && (
+            <p className="mb-2 text-sm text-green-700">You have been signed out.</p>
+          )}
           <form className="grid gap-4" onSubmit={onSubmit} aria-busy={loginMutation.isPending}>
             <div className="grid gap-2">
               <label htmlFor="email" className="text-sm font-medium">Email</label>
-              <input
+              <Input
                 id="email"
                 name="email"
                 type="email"
@@ -86,7 +91,6 @@ function LoginPageInner() {
                     return Object.keys(rest).length === 0 ? null : rest;
                   });
                 }}
-                className="border rounded-md h-10 px-3 text-sm bg-background"
                 aria-invalid={!!fieldErrors?.email}
               />
               {fieldErrors?.email && fieldErrors.email[0] && (
@@ -95,7 +99,7 @@ function LoginPageInner() {
             </div>
             <div className="grid gap-2">
               <label htmlFor="password" className="text-sm font-medium">Password</label>
-              <input
+              <Input
                 id="password"
                 name="password"
                 type="password"
@@ -112,7 +116,6 @@ function LoginPageInner() {
                     return Object.keys(rest).length === 0 ? null : rest;
                   });
                 }}
-                className="border rounded-md h-10 px-3 text-sm bg-background"
                 aria-invalid={!!fieldErrors?.password}
               />
               {fieldErrors?.password && fieldErrors.password[0] && (

@@ -2,17 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  createMenuItem,
-  deleteMenuItem,
-  MenuItemDto,
-  updateMenuItem,
-} from "@/lib/api";
+import { createMenuItem, deleteMenuItem, MenuItemDto, updateMenuItem, formatIdr } from "@/lib/api";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { useUrlPaging } from "@/lib/url-paging";
 import { menuKeys } from "@/lib/query-options";
 import { useApiMutation, useMenuPaged } from "@/lib/hooks";
 import type { ValidationErrors } from "@/lib/http";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useNotifications } from "@/components/ui/notification-provider";
 
 type Editing = { id?: string; name: string; price: number } | null;
 
@@ -21,6 +19,7 @@ export default function AdminMenuPage() {
   const [editing, setEditing] = useState<Editing>(null);
   const [qDraft, setQDraft] = useState(q);
   const [formErrors, setFormErrors] = useState<ValidationErrors | null>(null);
+  const { notifySuccess } = useNotifications();
 
   useEffect(() => {
     setQDraft(q);
@@ -37,7 +36,10 @@ export default function AdminMenuPage() {
   const createMutation = useApiMutation({
     mutationFn: (dto: { name: string; price: number }) =>
       createMenuItem({ name: dto.name.trim(), price: dto.price }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: menuKeys.all() });
+      notifySuccess("Menu item created");
+    },
     onValidationError: handleValidationError,
   });
 
@@ -47,13 +49,19 @@ export default function AdminMenuPage() {
         name: payload.name.trim(),
         price: payload.price,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: menuKeys.all() });
+      notifySuccess("Menu item updated");
+    },
     onValidationError: handleValidationError,
   });
 
   const deleteMutation = useApiMutation({
     mutationFn: (id: string) => deleteMenuItem(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: menuKeys.all() });
+      notifySuccess("Menu item deleted");
+    },
   });
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -86,8 +94,9 @@ export default function AdminMenuPage() {
     setFormErrors((prev) => {
       if (!prev) return prev;
       if (!(field in prev)) return prev;
-      const { [field]: _removed, ...rest } = prev;
-      return Object.keys(rest).length === 0 ? null : rest;
+      const rest: Record<string, unknown> = { ...prev };
+      delete rest[field as string];
+      return Object.keys(rest).length === 0 ? null : (rest as ValidationErrors);
     });
   }
 
@@ -142,7 +151,7 @@ export default function AdminMenuPage() {
       {
         header: "Price",
         accessorKey: "price",
-        cell: ({ row }) => <span>{new Intl.NumberFormat("id-ID").format(row.original.price)}</span>,
+        cell: ({ row }) => <span>{formatIdr(row.original.price)}</span>,
       },
       {
         header: "Actions",
@@ -175,20 +184,19 @@ export default function AdminMenuPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Admin: Menu</h1>
         <form onSubmit={onSearch} className="flex items-center gap-2">
-          <input
+          <Input
             placeholder="Search..."
             value={qDraft}
             onChange={(e) => setQDraft(e.target.value)}
-            className="border rounded-md h-9 px-3 text-sm"
           />
-          <button className="rounded border px-3 py-2 text-sm" type="submit">
+          <Button variant="outline" type="submit" size="sm">
             Search
-          </button>
+          </Button>
         </form>
         <div className="flex items-center gap-2">
-          <button onClick={onStartCreate} className="rounded bg-black text-white px-3 py-2 text-sm">
+          <Button onClick={onStartCreate} size="sm">
             New Item
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -196,10 +204,10 @@ export default function AdminMenuPage() {
         <div className="rounded border p-4 space-y-3">
           <div className="grid gap-2">
             <label className="text-sm">Name</label>
-            <input
-              className="border rounded-md h-10 px-3 text-sm"
+            <Input
               value={editing.name}
               onChange={(e) => onChange("name", e.target.value)}
+              aria-invalid={!!formErrors?.name}
             />
             {formErrors?.name && formErrors.name[0] && (
               <p className="text-sm text-red-600">{formErrors.name[0]}</p>
@@ -207,31 +215,23 @@ export default function AdminMenuPage() {
           </div>
           <div className="grid gap-2">
             <label className="text-sm">Price</label>
-            <input
+            <Input
               type="number"
-              className="border rounded-md h-10 px-3 text-sm"
               value={editing.price}
               onChange={(e) => onChange("price", e.target.value)}
+              aria-invalid={!!formErrors?.price}
             />
             {formErrors?.price && formErrors.price[0] && (
               <p className="text-sm text-red-600">{formErrors.price[0]}</p>
             )}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              disabled={isSaving}
-              onClick={onSave}
-              className="rounded bg-black text-white px-3 py-2 text-sm disabled:opacity-50"
-            >
+            <Button disabled={isSaving} onClick={onSave}>
               Save
-            </button>
-            <button
-              disabled={isSaving}
-              onClick={onCancel}
-              className="rounded border px-3 py-2 text-sm disabled:opacity-50"
-            >
+            </Button>
+            <Button disabled={isSaving} onClick={onCancel} variant="outline">
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
