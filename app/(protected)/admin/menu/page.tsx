@@ -100,33 +100,35 @@ export default function AdminMenuPage() {
     });
   }
 
-  async function onSave() {
+  function onSave() {
     if (!editing) return;
     const payload = { ...editing, name: editing.name.trim() };
-
-    try {
-      if (payload.id != null) {
-        await updateMutation.mutateAsync({ id: payload.id, name: payload.name, price: payload.price });
-      } else {
-        await createMutation.mutateAsync({ name: payload.name, price: payload.price });
-      }
-      setEditing(null);
-      setFormErrors(null);
-    } catch {
-      // error already handled via useApiMutation
+    if (payload.id != null) {
+      updateMutation.mutate(
+        { id: payload.id, name: payload.name, price: payload.price },
+        {
+          onSuccess: () => {
+            setEditing(null);
+            setFormErrors(null);
+          },
+        },
+      );
+    } else {
+      createMutation.mutate(
+        { name: payload.name, price: payload.price },
+        {
+          onSuccess: () => {
+            setEditing(null);
+            setFormErrors(null);
+          },
+        },
+      );
     }
   }
 
-  const onDelete = useCallback(
-    async (id: string) => {
-      try {
-        await deleteMutation.mutateAsync(id);
-      } catch {
-        // error already handled via useApiMutation
-      }
-    },
-    [deleteMutation],
-  );
+  const onDelete = useCallback((id: string) => {
+    deleteMutation.mutate(id);
+  }, [deleteMutation]);
 
   function onSearch(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
