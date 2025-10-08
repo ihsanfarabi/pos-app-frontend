@@ -11,6 +11,7 @@ import type { ValidationErrors } from "@/lib/http";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/components/ui/notification-provider";
+import FormErrorSummary from "@/components/ui/form-error-summary";
 
 type Editing = { id?: string; name: string; price: number } | null;
 
@@ -19,6 +20,8 @@ export default function AdminMenuPage() {
   const [editing, setEditing] = useState<Editing>(null);
   const [qDraft, setQDraft] = useState(q);
   const [formErrors, setFormErrors] = useState<ValidationErrors | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [traceId, setTraceId] = useState<string | null>(null);
   const { notifySuccess } = useNotifications();
 
   useEffect(() => {
@@ -33,6 +36,35 @@ export default function AdminMenuPage() {
     setFormErrors(errors);
   }, []);
 
+  const handleErrorMessage = useCallback((message: string | null) => {
+    if (!message) {
+      setFormError(null);
+      setTraceId(null);
+      return;
+    }
+    setFormError(message);
+  }, []);
+
+  function validate(payload: { name: string; price: number }): boolean {
+    const next: ValidationErrors = {};
+    const name = payload.name.trim();
+    if (!name) {
+      next.name = ["Name is required."];
+    } else if (name.length > 200) {
+      next.name = ["Name must be at most 200 characters."];
+    }
+    if (!Number.isFinite(payload.price) || payload.price <= 0) {
+      next.price = ["Price must be greater than 0."];
+    }
+    const has = Object.keys(next).length > 0;
+    setFormErrors(has ? next : null);
+    if (!has) {
+      setFormError(null);
+      setTraceId(null);
+    }
+    return !has;
+  }
+
   const createMutation = useApiMutation({
     mutationFn: (dto: { name: string; price: number }) =>
       createMenuItem({ name: dto.name.trim(), price: dto.price }),
@@ -41,6 +73,14 @@ export default function AdminMenuPage() {
       notifySuccess("Menu item created");
     },
     onValidationError: handleValidationError,
+    onErrorMessage: handleErrorMessage,
+    disableErrorToast: true,
+    onError: (error: unknown) => {
+      if (error && typeof error === "object" && "traceId" in error) {
+        const t = (error as { traceId?: unknown }).traceId;
+        if (typeof t === "string") setTraceId(t);
+      }
+    },
   });
 
   const updateMutation = useApiMutation({
@@ -54,6 +94,14 @@ export default function AdminMenuPage() {
       notifySuccess("Menu item updated");
     },
     onValidationError: handleValidationError,
+    onErrorMessage: handleErrorMessage,
+    disableErrorToast: true,
+    onError: (error: unknown) => {
+      if (error && typeof error === "object" && "traceId" in error) {
+        const t = (error as { traceId?: unknown }).traceId;
+        if (typeof t === "string") setTraceId(t);
+      }
+    },
   });
 
   const deleteMutation = useApiMutation({
@@ -70,16 +118,22 @@ export default function AdminMenuPage() {
   function onStartCreate() {
     setEditing({ name: "", price: 0 });
     setFormErrors(null);
+    setFormError(null);
+    setTraceId(null);
   }
 
   function onStartEdit(item: MenuItemDto) {
     setEditing({ id: item.id, name: item.name, price: item.price });
     setFormErrors(null);
+    setFormError(null);
+    setTraceId(null);
   }
 
   function onCancel() {
     setEditing(null);
     setFormErrors(null);
+    setFormError(null);
+    setTraceId(null);
   }
 
   function onChange(field: keyof NonNullable<Editing>, value: string) {
@@ -91,6 +145,8 @@ export default function AdminMenuPage() {
           }
         : prev,
     );
+    setFormError(null);
+    setTraceId(null);
     setFormErrors((prev) => {
       if (!prev) return prev;
       if (!(field in prev)) return prev;
@@ -103,6 +159,7 @@ export default function AdminMenuPage() {
   function onSave() {
     if (!editing) return;
     const payload = { ...editing, name: editing.name.trim() };
+    if (!validate({ name: payload.name, price: payload.price })) return;
     if (payload.id != null) {
       updateMutation.mutate(
         { id: payload.id, name: payload.name, price: payload.price },
@@ -110,6 +167,8 @@ export default function AdminMenuPage() {
           onSuccess: () => {
             setEditing(null);
             setFormErrors(null);
+            setFormError(null);
+            setTraceId(null);
           },
         },
       );
@@ -120,6 +179,8 @@ export default function AdminMenuPage() {
           onSuccess: () => {
             setEditing(null);
             setFormErrors(null);
+            setFormError(null);
+            setTraceId(null);
           },
         },
       );
@@ -204,6 +265,7 @@ export default function AdminMenuPage() {
 
       {editing && (
         <div className="rounded border p-4 space-y-3">
+          <FormErrorSummary message={formError} traceId={traceId} />
           <div className="grid gap-2">
             <label className="text-sm">Name</label>
             <Input
