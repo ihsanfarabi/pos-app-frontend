@@ -9,6 +9,7 @@ import { login, type LoginRequest } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useApiMutation } from "@/lib/hooks";
 import type { ValidationErrors } from "@/lib/http";
+import FormErrorSummary from "@/components/ui/form-error-summary";
 
 function LoginPageInner() {
   const router = useRouter();
@@ -29,10 +30,12 @@ function LoginPageInner() {
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<ValidationErrors | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [traceId, setTraceId] = useState<string | null>(null);
 
   const handleErrorMessage = useCallback((message: string | null) => {
     if (!message) {
       setFormError(null);
+      setTraceId(null);
       return;
     }
     setFormError(message === "Request failed" ? "Invalid email or password." : message);
@@ -47,6 +50,12 @@ function LoginPageInner() {
     onValidationError: setFieldErrors,
     onErrorMessage: handleErrorMessage,
     disableErrorToast: true,
+    onError: (error: unknown) => {
+      if (error && typeof error === "object" && "traceId" in error) {
+        const t = (error as { traceId?: unknown }).traceId;
+        if (typeof t === "string") setTraceId(t);
+      }
+    },
   });
 
   useEffect(() => {
@@ -71,6 +80,7 @@ function LoginPageInner() {
           {loggedOut && (
             <p className="mb-2 text-sm text-green-700">You have been signed out.</p>
           )}
+          <FormErrorSummary message={formError} traceId={traceId} className="mb-2" />
           <form className="grid gap-4" onSubmit={onSubmit} aria-busy={loginMutation.isPending}>
             <div className="grid gap-2">
               <label htmlFor="email" className="text-sm font-medium">Email</label>

@@ -2,16 +2,33 @@ import axios, { AxiosError, AxiosHeaders, type AxiosRequestConfig } from "axios"
 import { clearToken, getToken, setToken } from "@/lib/auth";
 
 export type ValidationErrors = Record<string, string[]>;
+export type FieldErrorItem = { code?: string; message: string };
+export type RawValidationErrors = Record<string, FieldErrorItem[]>;
 
 export class ApiError extends Error {
   status?: number;
   fieldErrors?: ValidationErrors;
+  rawFieldErrors?: RawValidationErrors;
+  code?: string;
+  traceId?: string;
 
-  constructor(message: string, options?: { status?: number; fieldErrors?: ValidationErrors }) {
+  constructor(
+    message: string,
+    options?: {
+      status?: number;
+      fieldErrors?: ValidationErrors;
+      rawFieldErrors?: RawValidationErrors;
+      code?: string;
+      traceId?: string;
+    },
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = options?.status;
     this.fieldErrors = options?.fieldErrors;
+    this.rawFieldErrors = options?.rawFieldErrors;
+    this.code = options?.code;
+    this.traceId = options?.traceId;
   }
 }
 
@@ -81,45 +98,71 @@ function toCamelCase(key: string) {
   return key[0].toLowerCase() + key.slice(1);
 }
 
-function normalizeValidationErrors(value: unknown): ValidationErrors | undefined {
-  if (typeof value !== "object" || value === null) return undefined;
+function normalizeErrors(value: unknown): { fieldErrors?: ValidationErrors; rawFieldErrors?: RawValidationErrors } {
+  if (typeof value !== "object" || value === null) return {};
 
   const entries = Object.entries(value as Record<string, unknown>);
   const result: ValidationErrors = {};
+  const rawResult: RawValidationErrors = {};
   let hasAny = false;
 
   for (const [rawKey, raw] of entries) {
     const key = toCamelCase(rawKey);
     if (Array.isArray(raw)) {
-      const messages = raw
-        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-        .map((item) => item.trim());
-      if (messages.length > 0) {
-        result[key] = messages;
+      // Accept either array of strings or array of { message, code }
+      const items: FieldErrorItem[] = [];
+      for (const itm of raw) {
+        if (typeof itm === "string") {
+          const msg = itm.trim();
+          if (msg.length > 0) items.push({ message: msg });
+          continue;
+        }
+        if (typeof itm === "object" && itm !== null) {
+          const obj = itm as Record<string, unknown>;
+          const msg = typeof obj.message === "string" ? obj.message.trim() : "";
+          const code = typeof obj.code === "string" ? obj.code : undefined;
+          if (msg.length > 0) items.push({ message: msg, code });
+          continue;
+        }
+      }
+      if (items.length > 0) {
+        result[key] = items.map((i) => i.message);
+        rawResult[key] = items;
         hasAny = true;
       }
       continue;
     }
 
     if (typeof raw === "string" && raw.trim().length > 0) {
-      result[key] = [raw.trim()];
+      const msg = raw.trim();
+      result[key] = [msg];
+      rawResult[key] = [{ message: msg }];
       hasAny = true;
     }
   }
 
-  return hasAny ? result : undefined;
+  return hasAny ? { fieldErrors: result, rawFieldErrors: rawResult } : {};
 }
 
-function extractErrorDetails(error: AxiosError): { message: string; fieldErrors?: ValidationErrors } {
+function extractErrorDetails(error: AxiosError): {
+  message: string;
+  code?: string;
+  traceId?: string;
+  fieldErrors?: ValidationErrors;
+  rawFieldErrors?: RawValidationErrors;
+} {
   const fallback = "Request failed";
   const data = error.response?.data as {
     message?: unknown;
     error?: unknown;
     title?: unknown;
+    detail?: unknown;
     errors?: unknown;
+    code?: unknown;
+    traceId?: unknown;
   } | null;
 
-  const fieldErrors = normalizeValidationErrors(data?.errors);
+  const { fieldErrors, rawFieldErrors } = normalizeErrors(data?.errors ?? undefined) ?? {};
 
   const firstFieldMessage = fieldErrors
     ? Object.values(fieldErrors).flat().find((msg) => typeof msg === "string" && msg.trim().length > 0)
@@ -129,17 +172,27 @@ function extractErrorDetails(error: AxiosError): { message: string; fieldErrors?
     data?.message ??
     data?.error ??
     firstFieldMessage ??
+    data?.detail ??
     data?.title;
 
+  const code = typeof data?.code === "string" ? (data?.code as string) : undefined;
+  const traceIdBody = typeof data?.traceId === "string" ? (data?.traceId as string) : undefined;
+  let traceId = traceIdBody;
+  if (!traceId) {
+    const headers = error.response?.headers as Record<string, unknown> | undefined;
+    const traceHeader = headers && (headers["x-trace-id"] as string | undefined);
+    if (typeof traceHeader === "string" && traceHeader.trim().length > 0) traceId = traceHeader;
+  }
+
   if (typeof messageCandidate === "string" && messageCandidate.trim().length > 0) {
-    return { message: messageCandidate.trim(), fieldErrors };
+    return { message: messageCandidate.trim(), fieldErrors, rawFieldErrors, code, traceId };
   }
 
   if (typeof error.message === "string" && error.message.trim().length > 0) {
-    return { message: error.message, fieldErrors };
+    return { message: error.message, fieldErrors, rawFieldErrors, code, traceId };
   }
 
-  return { message: fallback, fieldErrors };
+  return { message: fallback, fieldErrors, rawFieldErrors, code, traceId };
 }
 
 function redirectToLogin() {
@@ -182,11 +235,14 @@ apiClient.interceptors.response.use(
       redirectToLogin();
     }
 
-    const { message, fieldErrors } = extractErrorDetails(error);
+    const { message, fieldErrors, rawFieldErrors, code, traceId } = extractErrorDetails(error);
     return Promise.reject(
       new ApiError(message, {
         status: error.response?.status,
         fieldErrors,
+        rawFieldErrors,
+        code,
+        traceId,
       }),
     );
   },
