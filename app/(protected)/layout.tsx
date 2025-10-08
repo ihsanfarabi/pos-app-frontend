@@ -2,9 +2,17 @@
 
 import { useAuth } from "@/lib/auth-context";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <ProtectedLayoutInner>{children}</ProtectedLayoutInner>
+    </Suspense>
+  );
+}
+
+function ProtectedLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -20,7 +28,6 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, router, redirectTarget]);
 
-  // Show loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-dvh">
@@ -29,12 +36,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     );
   }
 
-  // Not authenticated - show nothing while redirecting
   if (!user) {
     return null;
   }
 
-  // Authenticated - render children
   return <>{children}</>;
 }
 
