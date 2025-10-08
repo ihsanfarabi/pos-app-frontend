@@ -106,6 +106,17 @@ export async function payCash(ticketId: string): Promise<{ id: string; status: s
   return res.data;
 }
 
+export async function payMock(
+  ticketId: string,
+  shouldSucceed: boolean,
+): Promise<{ id: string; status: string; total: number }> {
+  const res = await apiClient.post<{ id: string; status: string; total: number }>(
+    `/api/tickets/${ticketId}/pay/mock`,
+    { shouldSucceed },
+  );
+  return res.data;
+}
+
 export function formatIdr(amount: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
 }

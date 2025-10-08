@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { addLine, createTicket, formatIdr, payCash } from "@/lib/api";
+import { addLine, createTicket, formatIdr, payCash, payMock } from "@/lib/api";
 import { ticketKeys } from "@/lib/query-options";
 import { useApiMutation, useMenuList, useTicketDetail } from "@/lib/hooks";
 import { useRouter } from "next/navigation";
@@ -34,8 +34,28 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
     },
   });
 
+  const payMockSuccessMutation = useApiMutation({
+    mutationFn: () => payMock(ticketId, true),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) });
+      queryClient.invalidateQueries({ queryKey: ticketKeys.root });
+    },
+  });
+
+  const payMockFailMutation = useApiMutation({
+    mutationFn: () => payMock(ticketId, false),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) });
+      queryClient.invalidateQueries({ queryKey: ticketKeys.root });
+    },
+  });
+
   const isBusy =
-    addLineMutation.isPending || payCashMutation.isPending || newTicketMutation.isPending;
+    addLineMutation.isPending ||
+    payCashMutation.isPending ||
+    payMockSuccessMutation.isPending ||
+    payMockFailMutation.isPending ||
+    newTicketMutation.isPending;
 
   async function onAdd(menuItemId: string) {
     try {
@@ -48,6 +68,22 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   async function onPay() {
     try {
       await payCashMutation.mutateAsync();
+    } catch {
+      // error handled via useApiMutation
+    }
+  }
+
+  async function onPayMockSuccess() {
+    try {
+      await payMockSuccessMutation.mutateAsync();
+    } catch {
+      // error handled via useApiMutation
+    }
+  }
+
+  async function onPayMockFail() {
+    try {
+      await payMockFailMutation.mutateAsync();
     } catch {
       // error handled via useApiMutation
     }
@@ -125,6 +161,20 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
             className="rounded bg-black text-white px-4 py-2 disabled:opacity-50"
           >
             Pay Cash
+          </button>
+          <button
+            onClick={onPayMockSuccess}
+            disabled={isBusy || ticket?.status !== "Open"}
+            className="rounded bg-blue-600 text-white px-4 py-2 disabled:opacity-50"
+          >
+            Pay Mock (Success)
+          </button>
+          <button
+            onClick={onPayMockFail}
+            disabled={isBusy || ticket?.status !== "Open"}
+            className="rounded bg-red-600 text-white px-4 py-2 disabled:opacity-50"
+          >
+            Pay Mock (Fail)
           </button>
           <span className="text-sm text-gray-500">Status: {ticket?.status ?? "Loading..."}</span>
         </div>
