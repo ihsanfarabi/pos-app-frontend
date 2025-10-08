@@ -54,6 +54,24 @@ function LoginPageInner() {
     disableErrorToast: true,
   });
 
+  function validate(): boolean {
+    const next: ValidationErrors = {};
+    const emailTrimmed = email.trim();
+    const passwordTrimmed = password.trim();
+    if (!emailTrimmed) {
+      next.email = ["Email is required."];
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      next.email = ["Enter a valid email address."];
+    }
+    if (!passwordTrimmed) {
+      next.password = ["Password is required."];
+    }
+    const has = Object.keys(next).length > 0;
+    setFieldErrors(has ? next : null);
+    if (has) setFormError(null);
+    return !has;
+  }
+
   useEffect(() => {
     if (user) {
       router.replace(redirect);
@@ -62,6 +80,7 @@ function LoginPageInner() {
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!validate()) return;
     loginMutation.mutate({ email, password } satisfies LoginRequest);
   }
 
@@ -77,7 +96,7 @@ function LoginPageInner() {
             <p className="mb-2 text-sm text-green-700">You have been signed out.</p>
           )}
           <FormErrorSummary message={formError} traceId={traceId} className="mb-2" />
-          <form className="grid gap-4" onSubmit={onSubmit} aria-busy={loginMutation.isPending}>
+          <form className="grid gap-4" onSubmit={onSubmit} aria-busy={loginMutation.isPending} noValidate>
             <div className="grid gap-2">
               <label htmlFor="email" className="text-sm font-medium">Email</label>
               <Input
