@@ -14,7 +14,7 @@ import { menuKeys } from "@/lib/query-options";
 import { useApiMutation, useMenuPaged } from "@/lib/hooks";
 import type { ValidationErrors } from "@/lib/http";
 
-type Editing = { id?: number; name: string; price: number } | null;
+type Editing = { id?: string; name: string; price: number } | null;
 
 export default function AdminMenuPage() {
   const { page, pageSize, q, setState } = useUrlPaging({ page: 1, pageSize: 20, q: "" });
@@ -42,8 +42,8 @@ export default function AdminMenuPage() {
   });
 
   const updateMutation = useApiMutation({
-    mutationFn: (payload: { id: number; name: string; price: number }) =>
-      updateMenuItem(String(payload.id), {
+    mutationFn: (payload: { id: string; name: string; price: number }) =>
+      updateMenuItem(payload.id, {
         name: payload.name.trim(),
         price: payload.price,
       }),
@@ -52,7 +52,7 @@ export default function AdminMenuPage() {
   });
 
   const deleteMutation = useApiMutation({
-    mutationFn: (id: number) => deleteMenuItem(String(id)),
+    mutationFn: (id: string) => deleteMenuItem(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: menuKeys.all() }),
   });
 
@@ -109,7 +109,7 @@ export default function AdminMenuPage() {
   }
 
   const onDelete = useCallback(
-    async (id: number) => {
+    async (id: string) => {
       try {
         await deleteMutation.mutateAsync(id);
       } catch {

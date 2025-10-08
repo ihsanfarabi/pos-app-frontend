@@ -14,7 +14,7 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   const ticketQuery = useTicketDetail(ticketId);
 
   const addLineMutation = useApiMutation({
-    mutationFn: (menuItemId: number) => addLine({ ticketId, menuItemId }),
+    mutationFn: (menuItemId: string) => addLine({ ticketId, menuItemId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) }),
   });
 
@@ -37,7 +37,7 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
   const isBusy =
     addLineMutation.isPending || payCashMutation.isPending || newTicketMutation.isPending;
 
-  async function onAdd(menuItemId: number) {
+  async function onAdd(menuItemId: string) {
     try {
       await addLineMutation.mutateAsync(menuItemId);
     } catch {

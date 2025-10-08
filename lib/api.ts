@@ -4,7 +4,7 @@ export type LoginRequest = { email: string; password: string };
 export type LoginResponse = { access_token: string; expires_in: number };
 
 export type MenuItemDto = {
-  id: number;
+  id: string;
   name: string;
   price: number;
 };
@@ -87,7 +87,7 @@ export async function getTicket(ticketId: string): Promise<TicketDto> {
 
 export type TicketLineCreateRequest = {
   ticketId: string;
-  menuItemId: number;
+  menuItemId: string;
   qty?: number;
 };
 
