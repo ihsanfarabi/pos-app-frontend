@@ -21,12 +21,12 @@ export default function LogoutPage() {
         await performLogout();
       } catch {}
       authLogout();
-      if (active) router.replace("/login");
+      if (active) router.replace("/login?loggedOut=1");
     })();
     return () => {
       active = false;
     };
   }, [performLogout, authLogout, router]);
 
-  return <p className="p-6">Signing out...</p>;
+  return <p className="p-6" aria-live="polite">Signing out...</p>;
 }

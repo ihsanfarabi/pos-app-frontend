@@ -1,21 +1,30 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { addLine, createTicket, formatIdr, payCash, payMock } from "@/lib/api";
+import { addLine, createTicket, payCash, payMock, type MenuItemDto, type TicketDto } from "@/lib/api";
 import { ticketKeys } from "@/lib/query-options";
 import { useApiMutation, useMenuList, useTicketDetail } from "@/lib/hooks";
 import { useRouter } from "next/navigation";
+import TicketLines, { TicketLinesSkeleton } from "@/components/pos/TicketLines";
+import PaymentControls from "@/components/pos/PaymentControls";
+import TicketHeader from "@/components/pos/TicketHeader";
+import MenuGrid, { MenuGridSkeleton } from "@/components/pos/MenuGrid";
+import { useNotifications } from "@/components/ui/notification-provider";
 
 export default function TicketClient({ ticketId }: { ticketId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { notifySuccess } = useNotifications();
 
   const menuQuery = useMenuList();
   const ticketQuery = useTicketDetail(ticketId);
 
   const addLineMutation = useApiMutation({
     mutationFn: (menuItemId: string) => addLine({ ticketId, menuItemId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) });
+      notifySuccess("Item added to ticket");
+    },
   });
 
   const payCashMutation = useApiMutation({
@@ -23,6 +32,7 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) });
       queryClient.invalidateQueries({ queryKey: ticketKeys.root });
+      notifySuccess("Payment successful");
     },
   });
 
@@ -31,6 +41,7 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
     onSuccess: ({ id }) => {
       queryClient.invalidateQueries({ queryKey: ticketKeys.root });
       router.replace(`/pos/t/${id}`);
+      notifySuccess("New ticket created");
     },
   });
 
@@ -39,6 +50,7 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ticketKeys.detail(ticketId) });
       queryClient.invalidateQueries({ queryKey: ticketKeys.root });
+      notifySuccess("Mock payment succeeded");
     },
   });
 
@@ -57,128 +69,47 @@ export default function TicketClient({ ticketId }: { ticketId: string }) {
     payMockFailMutation.isPending ||
     newTicketMutation.isPending;
 
-  async function onAdd(menuItemId: string) {
-    try {
-      await addLineMutation.mutateAsync(menuItemId);
-    } catch {
-      // error handled via useApiMutation
-    }
+  function onAdd(menuItemId: string) {
+    addLineMutation.mutate(menuItemId);
   }
 
-  async function onPay() {
-    try {
-      await payCashMutation.mutateAsync();
-    } catch {
-      // error handled via useApiMutation
-    }
+  function onPay() {
+    payCashMutation.mutate();
   }
 
-  async function onPayMockSuccess() {
-    try {
-      await payMockSuccessMutation.mutateAsync();
-    } catch {
-      // error handled via useApiMutation
-    }
+  function onPayMockSuccess() {
+    payMockSuccessMutation.mutate();
   }
 
-  async function onPayMockFail() {
-    try {
-      await payMockFailMutation.mutateAsync();
-    } catch {
-      // error handled via useApiMutation
-    }
+  function onPayMockFail() {
+    payMockFailMutation.mutate();
   }
 
-  async function onNewTicket() {
-    try {
-      await newTicketMutation.mutateAsync();
-    } catch {
-      // error handled via useApiMutation
-    }
+  function onNewTicket() {
+    newTicketMutation.mutate();
   }
 
-  const menu = menuQuery.data ?? [];
-  const ticket = ticketQuery.data;
+  const menu = (menuQuery.data ?? []) as MenuItemDto[];
+  const ticket = ticketQuery.data as TicketDto | undefined;
 
   return (
     <div className="p-6 max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-      <header className="md:col-span-2 flex items-center justify-between">
-        <button
-          onClick={onNewTicket}
-          disabled={isBusy}
-          className="text-sm rounded border px-3 py-1 disabled:opacity-50"
-        >
-          New Ticket
-        </button>
-        <h1 className="text-xl font-semibold">Ticket {ticketId.slice(0, 8)}</h1>
-        <div />
-      </header>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Menu</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {menu.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => onAdd(m.id)}
-              disabled={isBusy || ticket?.status !== "Open"}
-              className="rounded border px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50"
-            >
-              <div className="font-medium">{m.name}</div>
-              <div className="text-sm text-gray-600">{formatIdr(m.price)}</div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Ticket</h2>
-        <div className="rounded border divide-y">
-          <div className="grid grid-cols-5 px-3 py-2 text-sm font-medium bg-gray-50">
-            <div className="col-span-2">Item</div>
-            <div className="text-right">Qty</div>
-            <div className="text-right">Unit</div>
-            <div className="text-right">Line</div>
-          </div>
-          {ticket?.lines.map((l) => (
-            <div key={l.id} className="grid grid-cols-5 px-3 py-2 text-sm">
-              <div className="col-span-2">{l.itemName}</div>
-              <div className="text-right">{l.qty}</div>
-              <div className="text-right">{formatIdr(l.unitPrice)}</div>
-              <div className="text-right">{formatIdr(l.lineTotal)}</div>
-            </div>
-          ))}
-          <div className="grid grid-cols-5 px-3 py-2 text-sm font-semibold bg-gray-50">
-            <div className="col-span-4 text-right">Total</div>
-            <div className="text-right">{formatIdr(ticket?.total ?? 0)}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onPay}
-            disabled={isBusy || ticket?.status !== "Open"}
-            className="rounded bg-black text-white px-4 py-2 disabled:opacity-50"
-          >
-            Pay Cash
-          </button>
-          <button
-            onClick={onPayMockSuccess}
-            disabled={isBusy || ticket?.status !== "Open"}
-            className="rounded bg-blue-600 text-white px-4 py-2 disabled:opacity-50"
-          >
-            Pay Mock (Success)
-          </button>
-          <button
-            onClick={onPayMockFail}
-            disabled={isBusy || ticket?.status !== "Open"}
-            className="rounded bg-red-600 text-white px-4 py-2 disabled:opacity-50"
-          >
-            Pay Mock (Fail)
-          </button>
-          <span className="text-sm text-gray-500">Status: {ticket?.status ?? "Loading..."}</span>
-        </div>
-      </section>
+      <TicketHeader ticketId={ticketId} onNewTicket={onNewTicket} isBusy={isBusy} />
+      {menuQuery.isPending ? (
+        <MenuGridSkeleton />
+      ) : (
+        <MenuGrid menu={menu} onAdd={onAdd} isBusy={isBusy} isTicketOpen={ticket?.status === "Open"} />
+      )}
+      <div className="space-y-3">
+        {ticketQuery.isPending ? <TicketLinesSkeleton /> : <TicketLines ticket={ticket} />}
+        <PaymentControls
+          ticket={ticket}
+          onPay={onPay}
+          onPayMockSuccess={onPayMockSuccess}
+          onPayMockFail={onPayMockFail}
+          isBusy={isBusy}
+        />
+      </div>
     </div>
   );
 }
